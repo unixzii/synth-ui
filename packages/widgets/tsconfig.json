@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Widgets are drawn through the core only: no DOM, no renderer.
+    "lib": ["ES2022"]
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@synth-ui/widgets",
+  "version": "0.1.0",
+  "description": "Basic widgets and theme for synth-ui",
+  "author": "Cyandev <unixzii@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@synth-ui/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@synth-ui/core": "workspace:^"
+  }
+}

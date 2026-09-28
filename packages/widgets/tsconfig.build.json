@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    // Other @synth-ui packages come from their built dist/, not their sources.
+    "customConditions": []
+  },
+  "exclude": ["src/**/*.test.ts"]
+}
