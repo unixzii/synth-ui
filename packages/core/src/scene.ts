@@ -6,7 +6,6 @@
 
 import type { Bitmap, Pattern } from './bitmap.js';
 import type { StrengthField } from './filter.js';
-import type { Font } from './font.js';
 import type { Rect } from './geometry.js';
 import type { ColorMap, Palette } from './palette.js';
 
@@ -25,8 +24,8 @@ export type DrawCommand =
   | (Base & { op: 'pixel'; x: number; y: number; color: number })
   /** A 1-bit image in one colour, each bit a `scale`×`scale` block. */
   | (Base & { op: 'bitmap'; image: Bitmap; x: number; y: number; color: number; scale: number })
-  /** A line of text with its top left at (x, y). */
-  | (Base & { op: 'text'; font: Font; text: string; x: number; y: number; color: number; scale: number })
+  /** A line of text in a registered font, its top left at (x, y). */
+  | (Base & { op: 'text'; font: string; text: string; x: number; y: number; color: number; scale: number })
   /** Replace every index in the rectangle through a colour map: washes, fades, tints. */
   | (Base & { op: 'remap'; x: number; y: number; w: number; h: number; map: ColorMap; pattern: Pattern })
   /** Pixelate: each `size`×`size` block, from the rectangle's corner, takes the colour at its centre. */

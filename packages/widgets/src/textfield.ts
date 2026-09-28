@@ -6,7 +6,7 @@
 // text in progress, and hands it back when editing ends with Enter or by
 // moving the focus away. Escape puts the value back.
 
-import { type Context, type Font, type Interaction, type Rect } from '@synth-ui/core';
+import { type AttributedText, type Context, type Interaction, type Rect, type TextLayout, type TextRange } from '@synth-ui/core';
 import { History, erase, hasSelection, insert, moveTo, selEnd, selStart, selected, step, wordAt, wordLeft, wordRight, type Edit } from './textedit.js';
 import { useTheme } from './theme.js';
 
@@ -43,14 +43,8 @@ export interface TextFieldResult {
   cancelled: boolean;
 }
 
-interface Line {
-  start: number;
-  end: number;
-}
-
-interface Layout {
-  scale: number;
-  lines: Line[];
+interface Fit {
+  layout: TextLayout;
   /** One line that scrolls sideways, rather than wrapping. */
   single: boolean;
 }
@@ -61,7 +55,7 @@ const BLINK_MS = 530;
 export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): TextFieldResult {
   const { colors: c, fonts } = useTheme(ctx);
   const name = props.font ?? 'text';
-  const font = ctx.font(fonts[name as keyof typeof fonts] ?? name);
+  const font = fonts[name as keyof typeof fonts] ?? name;
   const sizes = props.sizes ?? [[1, 1]];
   const id = ctx.makeKey(props.key);
   const s = ctx.state(
@@ -83,9 +77,9 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
   const shown = () => (s.editing ? display(s.edit, s.composing) : { text: props.value, compA: -1, compB: -1, caret: -1 });
   const b = ctx.bounds;
   const outerW = rect?.w ?? props.w ?? b.x + b.w - ctx.cursor.x;
-  let lay = layout(font, shown().text, outerW - 4, sizes);
-  const lineH = (l: Layout) => font.height * l.scale + l.scale + 1;
-  const r = rect ?? ctx.place({ w: outerW, h: lay.lines.length * lineH(lay) + 3 });
+  let lay = fit(ctx, shown().text, outerW - 4, sizes, { font });
+  const lineH = (f: Fit) => ctx.fontMetrics(font).height * f.layout.scale + f.layout.scale + 1;
+  const r = rect ?? ctx.place({ w: outerW, h: lay.layout.lines.length * lineH(lay) + 3 });
   const it = ctx.interaction(r, { key: `${id}:it`, focusable: true, text: true, cursor: 'text', hint: props.hint });
   const out: TextFieldResult = { it, editing: false, text: props.value, changed: false, committed: null, cancelled: false };
 
@@ -113,11 +107,7 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
     const before = s.edit;
     const tx = r.x + 2 - s.scrollX;
     const ty = r.y + 2;
-    const pointed = () => {
-      const p = ctx.pointer;
-      const row = Math.min(lay.lines.length - 1, Math.max(0, Math.floor((p.y - ty) / lineH(lay))));
-      return caretAt(font, s.edit.text, lay, row, p.x - tx);
-    };
+    const pointed = () => lay.layout.indexAt({ x: ctx.pointer.x - tx, y: ctx.pointer.y - ty });
 
     // The pointer: click to place the caret, Shift-click or drag to select; double-click for a word
     // (drag on for more, a word at a time), triple-click for everything.
@@ -180,9 +170,10 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
     const mod = mac ? m.meta : m.ctrl;
     const byWord = mac ? m.alt : m.ctrl;
     const e = s.edit;
-    const line = lineOf(lay, e.focus);
-    const lineStart = lay.single ? 0 : lay.lines[line].start;
-    const lineEnd = lay.single ? e.text.length : lay.lines[line].end;
+    const { layout } = lay;
+    const line = layout.lineOf(e.focus);
+    const lineStart = lay.single ? 0 : layout.lines[line].start;
+    const lineEnd = lay.single ? e.text.length : layout.lines[line].end;
     const edit = (next: Edit, kind: string) => {
       if (next.text !== e.text) s.history.record(e, kind, ctx.time);
       s.edit = next;
@@ -212,8 +203,8 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
       case 'ArrowUp':
       case 'ArrowDown': {
         const to = line + (k === 'ArrowUp' ? -1 : 1);
-        if (lay.single || to < 0 || to >= lay.lines.length) move(k === 'ArrowUp' ? 0 : e.text.length);
-        else move(caretAt(font, e.text, lay, to, pen(font, e.text, lay, line, e.focus)));
+        if (lay.single || to < 0 || to >= layout.lines.length) move(k === 'ArrowUp' ? 0 : e.text.length);
+        else move(layout.indexAt({ x: layout.position(e.focus, line).x, y: layout.lines[to].rect.y }));
         return true;
       }
       case 'Backspace':
@@ -254,21 +245,25 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
   // ---------------------------------------------------------- drawing
   // Just committed: show the new text now, not the old value for a frame.
   const d = s.editing ? display(s.edit, s.composing) : { text: out.committed ?? props.value, compA: -1, compB: -1, caret: -1 };
-  lay = layout(font, d.text, r.w - 4, sizes);
-  const lh = lineH(lay);
-  const sc = lay.scale;
   const editing = s.editing;
   const selA = editing && !s.composing ? selStart(s.edit) : -1;
   const selB = editing && !s.composing ? selEnd(s.edit) : -1;
   const caret = editing ? (s.composing ? d.caret : s.edit.focus) : -1;
+  // The selection lit in the accent; what an input method is composing, underlined.
+  const attrs: TextRange[] = [];
+  if (selB > selA) attrs.push({ start: selA, end: selB, color: c.bg, background: c.accent });
+  if (d.compB > d.compA) attrs.push({ start: d.compA, end: d.compB, color: c.flame, underline: c.accent });
+  lay = fit(ctx, { text: d.text, attrs }, r.w - 4, sizes, { font, color: c.paper });
+  const { layout } = lay;
+  const sc = layout.scale;
 
   // One line that's too long scrolls to keep the caret in view.
   if (editing && lay.single) {
     const area = r.w - 4;
-    const cx = pen(font, d.text, lay, 0, caret);
+    const cx = layout.position(caret).x;
     if (cx - s.scrollX > area - sc) s.scrollX = cx - area + sc;
     if (cx - s.scrollX < 0) s.scrollX = cx;
-    s.scrollX = Math.max(0, Math.min(s.scrollX, font.width(d.text, sc) + sc - area));
+    s.scrollX = Math.max(0, Math.min(s.scrollX, layout.bounds.w + sc - area));
   }
 
   if (it.hovered && !editing) ctx.hline(r.x + 2, r.y + r.h - 1, r.w - 4, c.line);
@@ -276,28 +271,14 @@ export function textField(ctx: Context, props: TextFieldProps, rect?: Rect): Tex
     r,
     (box) => {
       const x0 = 2 - s.scrollX;
-      lay.lines.forEach((ln, row) => {
-        const ly = 2 + row * lh;
-        const px = (i: number) => x0 + pen(font, d.text, lay, row, i);
-        const a = Math.max(ln.start, selA);
-        const bb = Math.min(ln.end, selB);
-        if (bb > a) box.fillRect({ x: px(a) - sc, y: ly - 1, w: px(bb) - px(a) + sc, h: font.height * sc + 2 }, c.accent);
-        let x = x0;
-        for (let i = ln.start; i < ln.end; i++) {
-          const color = i >= selA && i < selB ? c.bg : i >= d.compA && i < d.compB ? c.flame : c.paper;
-          x = box.text(d.text[i], x, ly, { font, scale: sc, color });
-        }
-        if (d.compB > d.compA && d.compA < ln.end && d.compB > ln.start) {
-          const ua = Math.max(ln.start, d.compA);
-          const ub = Math.min(ln.end, d.compB);
-          box.hline(px(ua), ly + font.height * sc + 1, px(ub) - px(ua) - sc, c.accent);
-        }
-        if (editing && lineOf(lay, caret) === row) {
-          const caretRect = { x: px(caret) - sc, y: ly - 1, w: sc, h: font.height * sc + 2 };
-          s.caret = { ...caretRect, x: caretRect.x + r.x, y: caretRect.y + r.y };
-          if (Math.floor((ctx.time - s.blink) / BLINK_MS) % 2 === 0) box.fillRect(caretRect, c.accent);
-        }
-      });
+      box.drawText(layout, x0, 2);
+      if (editing) {
+        const row = layout.lineOf(caret);
+        const p = layout.position(caret, row);
+        const caretRect = { x: x0 + p.x - sc, y: 2 + p.y - 1, w: sc, h: layout.lines[row].rect.h + 2 };
+        s.caret = { ...caretRect, x: caretRect.x + r.x, y: caretRect.y + r.y };
+        if (Math.floor((ctx.time - s.blink) / BLINK_MS) % 2 === 0) box.fillRect(caretRect, c.accent);
+      }
       if (!d.text && !editing && props.placeholder) box.text(props.placeholder, 2, 2, { font, scale: sc, color: c.dim });
     },
     { clip: true },
@@ -321,66 +302,18 @@ function display(e: Edit, composing: string): { text: string; compA: number; com
 }
 
 /** The largest size whose lines fit (one-line sizes don't wrap, they scroll), else the last, cut to its lines. */
-function layout(font: Font, text: string, width: number, sizes: readonly (readonly [number, number])[]): Layout {
+function fit(ctx: Context, text: AttributedText, width: number, sizes: readonly (readonly [number, number])[], style: { font: string; color?: number }): Fit {
   for (let n = 0; n < sizes.length; n++) {
     const [scale, max] = sizes[n];
     const last = n === sizes.length - 1;
+    const opts = { ...style, scale, lineGap: scale + 1 };
     if (max <= 1) {
-      if (last || font.width(text, scale) <= width) return { scale, lines: [{ start: 0, end: text.length }], single: true };
+      const layout = ctx.layoutText(text, opts);
+      if (last || layout.bounds.w <= width) return { layout, single: true };
       continue;
     }
-    const lines = wrap(font, text, width, scale);
-    if (lines.length <= max || last) return { scale, lines: lines.slice(0, max), single: false };
+    const layout = ctx.layoutText(text, { ...opts, width, wrap: 'word', maxLines: max });
+    if (!layout.truncated || last) return { layout, single: false };
   }
-  return { scale: 1, lines: [{ start: 0, end: text.length }], single: true };
-}
-
-/** Break at spaces where the text would run over `width`, or mid-word if a word alone is too wide. */
-function wrap(font: Font, text: string, width: number, scale: number): Line[] {
-  const lines: Line[] = [];
-  let start = 0;
-  for (;;) {
-    let n = 0;
-    while (start + n < text.length && font.width(text.slice(start, start + n + 1), scale) <= width) n++;
-    if (start + n >= text.length) {
-      lines.push({ start, end: text.length });
-      return lines;
-    }
-    const space = text.lastIndexOf(' ', start + n);
-    if (space > start) {
-      lines.push({ start, end: space });
-      start = space + 1;
-    } else {
-      const k = Math.max(1, n);
-      lines.push({ start, end: start + k });
-      start += k;
-    }
-  }
-}
-
-/** The row a caret position is on. */
-function lineOf(lay: Layout, i: number): number {
-  for (let row = lay.lines.length - 1; row > 0; row--) if (i >= lay.lines[row].start) return row;
-  return 0;
-}
-
-/** Pixels from a row's start to the caret gap before character `i`. */
-function pen(font: Font, text: string, lay: Layout, row: number, i: number): number {
-  const { start } = lay.lines[row];
-  return i > start ? font.width(text.slice(start, i), lay.scale) + font.spacing * lay.scale : 0;
-}
-
-/** The caret position nearest `dx` pixels into row `row`. */
-function caretAt(font: Font, text: string, lay: Layout, row: number, dx: number): number {
-  const { start, end } = lay.lines[row];
-  let best = start;
-  let bestD = Math.abs(dx);
-  for (let i = start + 1; i <= end; i++) {
-    const d = Math.abs(dx - pen(font, text, lay, row, i));
-    if (d < bestD) {
-      bestD = d;
-      best = i;
-    }
-  }
-  return best;
+  return { layout: ctx.layoutText(text, { ...style, lineGap: 2 }), single: true };
 }

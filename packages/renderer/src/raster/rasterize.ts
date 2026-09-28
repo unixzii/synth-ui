@@ -2,11 +2,11 @@
 // presenters only turn the finished indices into light.
 
 import { bayer, strengthAt, type DrawCommand, type Scene } from '@synth-ui/core';
-import { BitmapFont } from './font.js';
+import type { FontRegistry } from './font.js';
 import type { Surface } from './surface.js';
 
-/** Draw `scene` into `target`, resizing it to the scene first if they differ. */
-export function rasterize(scene: Scene, target: Surface): void {
+/** Draw `scene` into `target`, with `fonts` for its text, resizing the target to the scene first if they differ. */
+export function rasterize(scene: Scene, target: Surface, fonts: FontRegistry): void {
   if (target.width !== scene.width || target.height !== scene.height) target.resize(scene.width, scene.height);
   target.clear(scene.background);
   let clip = -1;
@@ -36,7 +36,7 @@ export function rasterize(scene: Scene, target: Surface): void {
         target.bits(c.image, c.x, c.y, c.color, c.scale);
         break;
       case 'text':
-        if (c.font instanceof BitmapFont) c.font.draw(target, c.text, c.x, c.y, c.color, c.scale);
+        fonts.font(c.font).draw(target, c.text, c.x, c.y, c.color, c.scale);
         break;
       case 'remap':
         target.remap(c.x, c.y, c.w, c.h, c.map, c.pattern);

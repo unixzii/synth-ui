@@ -24,7 +24,7 @@ export {
   type Strength,
   type StrengthField,
 } from './filter.js';
-export { DEFAULT_FONT, centerText, fitText, truncate, type Font, type FontSource, type TextStyle } from './font.js';
+export type { BitmapFace, FontFace, FontMetrics, FontSet, TextStyle } from './font.js';
 export { center, centerIn, inset, inside, intersect, isEmpty, rect, type Point, type Rect, type Size } from './geometry.js';
 export {
   NO_MODIFIERS,
@@ -39,4 +39,5 @@ export {
 } from './input.js';
 export { MAX_COLORS, Palette, luminance, mixRgb, parseHex, type ColorMap, type PaletteEntry, type Rgb } from './palette.js';
 export type { DrawCommand, Scene } from './scene.js';
+export type { AttributedText, TextAttrs, TextLayout, TextLayoutOptions, TextLine, TextRange, TextRun } from './text.js';
 export { UI, type FrameInput, type FrameOutput, type KeyEvent, type TextEvent, type TextInputState, type UIOptions } from './ui.js';

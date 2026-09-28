@@ -65,10 +65,11 @@ Each control's doc comment and props describe how to use it.
 ```ts
 import { Palette } from '@synth-ui/core';
 import { createWebHost } from '@synth-ui/renderer/web';
-import { THEME_COLORS, button, useTheme } from '@synth-ui/widgets';
+import { THEME_COLORS, THEME_FONTS, button, useTheme } from '@synth-ui/widgets';
 
 const palette = new Palette([...THEME_COLORS /*, the app's own colours */]);
-const host = createWebHost(document.getElementById('app')!, { palette, resolution: { width: 480, height: 300 } });
+const fonts = { ...THEME_FONTS /*, the app's own faces */ };
+const host = createWebHost(document.getElementById('app')!, { palette, fonts, resolution: { width: 480, height: 300 } });
 let count = 0;
 
 host.run((ctx) => {
@@ -215,18 +216,43 @@ Filters, like `remap` and `mosaic`, work on what's drawn before them in the
 same layer (and everything in the layers below), and stay inside the
 region's clip.
 
-Fonts belong to the renderer and are found by name: `'5x7'` (the default)
-and `'small'` are built in, and `host.fonts.register()` adds more.
-`ctx.font(name)` and `ctx.measureText()` measure through them.
+### Text
+
+Fonts are named, like colours. The app gives the host a set of faces
+(`fonts`, e.g. the widgets' `THEME_FONTS`: `text`, the 5×7, and `small`),
+with `defaultFont` naming the one used when none is (default: the first).
+Faces are data (`BitmapFace`: glyph rows, spacing, aliases); the renderer
+turns them into fonts it measures and draws, and nothing outside it holds
+one. Text is styled by font name, and measured through the context:
+`measureText(text, { font, scale })`, `fontMetrics(font)` (line height and
+spacing), `hasFont(name)`.
+
+For anything past one plain line, lay the text out and draw the layout:
+
+```ts
+const layout = ctx.layoutText(
+  { text: 'SAVE AS…', attrs: [{ start: 0, end: 4, color: c.accent, underline: c.accent }] },
+  { font: 'small', color: c.text, width: 80, height: 11, wrap: 'word', maxLines: 2, align: 'center', valign: 'middle' },
+);
+ctx.drawText(layout, x, y);
+```
+
+`layoutText` takes a string, or one with attributes (`color`,
+`background`, `underline`) over ranges of it, and a box to set it in. The
+layout has its `lines`, the `runs` to draw (cut wherever the attributes
+change), its `bounds`, whether any text was left out (`truncated`), and
+where every caret position is: `position(index)`, `indexAt(point)`,
+`lineOf(index)`.
 
 ### Packages and platforms
 
 | Package | Platform Dependency | Contents |
 | --- | --- | --- |
-| `@synth-ui/core` | none | `UI` and `Context`: regions, keys, state, animation, layout, input routing, focus, shortcuts; the `Scene` it produces; `Palette`, bitmaps and dither |
-| `@synth-ui/renderer` | none | Platform-neutral: `rasterize` (Scene → 8-bit indexed `Surface`), `BitmapFont` and the built-in faces |
+| `@synth-ui/core` | none | `UI` and `Context`: regions, keys, state, animation, layout, input routing, focus, shortcuts; the `Scene` it produces; `Palette`, bitmaps and dither; font faces and text layout types |
+| `@synth-ui/core/backend` | none | What a renderer implements for the core: `Font`, `FontSource`, and `basicTextLayout`, a text layout built on a font's measurements |
+| `@synth-ui/renderer` | none | Platform-neutral: `rasterize` (Scene → 8-bit indexed `Surface`), `BitmapFont` and the `FontRegistry` made from an app's faces |
 | `@synth-ui/renderer/web` | DOM | `createWebHost`: canvas, the WebGL CRT (Canvas 2D fallback), DOM events → core events, the text agent, the frame loop |
-| `@synth-ui/widgets` | none | The theme (`THEME_COLORS`), icons, and widgets |
+| `@synth-ui/widgets` | none | The theme (`THEME_COLORS`, `THEME_FONTS`), the faces, icons, and widgets |
 
 Porting to another platform means writing a new host next to `web/` that
 feeds the core the same events and presents the rasterized surface; the

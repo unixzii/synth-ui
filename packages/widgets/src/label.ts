@@ -1,7 +1,7 @@
 // A line of text. Given a rect, it's cut to fit the width and centred
 // vertically; without one, it takes its natural size from the flow.
 
-import { truncate, type Context, type Rect } from '@synth-ui/core';
+import { type Context, type Rect } from '@synth-ui/core';
 import { useTheme } from './theme.js';
 
 export interface LabelProps {
@@ -17,12 +17,10 @@ export interface LabelProps {
 export function label(ctx: Context, text: string, props: LabelProps = {}, rect?: Rect): Rect {
   const t = useTheme(ctx);
   const name = props.font ?? 'text';
-  const font = ctx.font(t.fonts[name as keyof typeof t.fonts] ?? name);
+  const font = t.fonts[name as keyof typeof t.fonts] ?? name;
   const scale = props.scale ?? 1;
-  const r = rect ?? ctx.place({ w: font.width(text, scale), h: font.height * scale });
-  const shown = truncate(font, text, r.w, scale);
-  const w = font.width(shown, scale);
-  const x = props.align === 'center' ? r.x + Math.floor((r.w - w) / 2) : props.align === 'right' ? r.x + r.w - w : r.x;
-  ctx.text(shown, x, r.y + Math.floor((r.h - font.height * scale) / 2), { font, scale, color: props.color ?? t.colors.text });
+  const r = rect ?? ctx.place({ w: ctx.measureText(text, { font, scale }), h: ctx.fontMetrics(font).height * scale });
+  const layout = ctx.layoutText(text, { font, scale, color: props.color ?? t.colors.text, width: r.w, height: r.h, overflow: 'clip', align: props.align, valign: 'middle' });
+  ctx.drawText(layout, r.x, r.y);
   return r;
 }

@@ -1,13 +1,16 @@
 // The Synthez look: warm paper and ink, and one orange, on a dark screen,
-// laid out as ramps so washes and fades land on real palette entries.
+// laid out as ramps so washes and fades land on real palette entries; and
+// two pixel faces, the 5×7 for text and a small one for labels.
 //
 //   neutrals  14  warm greys, void → white. The chrome lives here.
 //   accent     4  ember → rust → orange → flame.
 //
-// An app's palette starts with these and adds its own colours after them;
-// widgets find theirs by name, so the order doesn't matter.
+// An app's palette starts with these and adds its own colours after them,
+// and its fonts are these plus its own; widgets find both by name, so the
+// order doesn't matter.
 
-import { createToken, type Context, type Palette, type PaletteEntry } from '@synth-ui/core';
+import { createToken, type Context, type FontSet, type Palette, type PaletteEntry } from '@synth-ui/core';
+import { FONT_5X7, FONT_SMALL } from './fonts.js';
 
 export const THEME_COLORS = [
   ['void', '#0B0A09'],
@@ -33,11 +36,19 @@ export const THEME_COLORS = [
 
 export type ThemeColor = (typeof THEME_COLORS)[number][0];
 
+/** The faces widgets draw with, by the names they ask for. Give them to the host: `fonts: THEME_FONTS`. */
+export const THEME_FONTS = {
+  text: FONT_5X7,
+  small: FONT_SMALL,
+} as const satisfies FontSet;
+
+export type ThemeFont = keyof typeof THEME_FONTS;
+
 export interface Theme {
   /** Palette indices by name. */
   colors: Readonly<Record<ThemeColor, number>>;
   /** Registered font names: the 5×7 for text, the small proportional face for labels. */
-  fonts: { text: string; small: string };
+  fonts: Readonly<Record<ThemeFont, string>>;
 }
 
 /** The theme for a palette that includes THEME_COLORS. */
@@ -48,15 +59,19 @@ export function themeFor(palette: Palette): Theme {
     if (!(name in index)) throw new Error(`synth-ui: the palette has no "${name}"; start it with THEME_COLORS`);
     colors[name] = index[name];
   }
-  return { colors, fonts: { text: '5x7', small: 'small' } };
+  return { colors, fonts: { text: 'text', small: 'small' } };
 }
 
 const cache = new WeakMap<Palette, Theme>();
 
-/** The theme widgets draw with: whatever a region provides, else the one for the current palette. */
+/** The theme widgets draw with: whatever a region provides, else the one for the current palette and THEME_FONTS. */
 export const THEME = createToken<Theme>('theme', (ctx) => {
   let t = cache.get(ctx.palette);
-  if (!t) cache.set(ctx.palette, (t = themeFor(ctx.palette)));
+  if (!t) {
+    t = themeFor(ctx.palette);
+    for (const name of Object.values(t.fonts)) if (!ctx.hasFont(name)) throw new Error(`synth-ui: the host has no font "${name}"; give it THEME_FONTS`);
+    cache.set(ctx.palette, t);
+  }
   return t;
 });
 

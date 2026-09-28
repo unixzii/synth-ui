@@ -19,8 +19,7 @@ export interface ButtonProps {
 }
 
 export function buttonSize(ctx: Context, props: Pick<ButtonProps, 'label' | 'pad' | 'h'>): Size {
-  const font = ctx.font(useTheme(ctx).fonts.small);
-  return { w: font.width(props.label) + (props.pad ?? 4) * 2 + 2, h: props.h ?? 11 };
+  return { w: ctx.measureText(props.label, { font: useTheme(ctx).fonts.small }) + (props.pad ?? 4) * 2 + 2, h: props.h ?? 11 };
 }
 
 /** A small outlined label, lit with the accent when `on`; pressed, it sinks a pixel. Returns its interaction: check `clicked`. */
@@ -28,8 +27,8 @@ export function button(ctx: Context, props: ButtonProps, rect?: Rect): Interacti
   const { colors: c, fonts } = useTheme(ctx);
   const r = rect ?? ctx.place(buttonSize(ctx, props));
   const it = ctx.interaction(r, { key: props.key, click: !props.disabled, cursor: props.disabled ? undefined : 'pointer', hint: props.disabled ? undefined : props.hint });
-  const font = ctx.font(fonts.small);
-  const at = centerIn(r, { w: font.width(props.label), h: font.height });
+  const font = fonts.small;
+  const at = centerIn(r, { w: ctx.measureText(props.label, { font }), h: ctx.fontMetrics(font).height });
   if (props.disabled) {
     ctx.strokeRect(r, c.control);
     ctx.text(props.label, at.x, at.y, { font, color: c.dim });

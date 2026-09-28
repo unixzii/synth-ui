@@ -10,6 +10,11 @@
       "@synth-ui/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./backend": {
+      "@synth-ui/source": "./src/backend.ts",
+      "types": "./dist/backend.d.ts",
+      "default": "./dist/backend.js"
     }
   },
   "main": "./dist/index.js",

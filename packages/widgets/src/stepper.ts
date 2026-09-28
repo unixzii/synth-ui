@@ -1,7 +1,7 @@
 // Values you step or scrub: ‹ value › with arrows either side, and a bare
 // number you drag or scroll.
 
-import { centerIn, fitText, HALF, type Context, type Interaction, type Rect } from '@synth-ui/core';
+import { centerIn, HALF, type Context, type Interaction, type Rect } from '@synth-ui/core';
 import { iconButton } from './button.js';
 import { ICONS } from './icons.js';
 import { clickTone, useTheme } from './theme.js';
@@ -38,9 +38,9 @@ export interface StepperResult {
 export function stepper(ctx: Context, props: StepperProps, rect?: Rect): StepperResult {
   const theme = useTheme(ctx);
   const { colors: c, fonts } = theme;
-  const font = ctx.font(fonts.text);
+  const font = fonts.text;
   const h = props.h ?? 13;
-  const r = rect ?? ctx.place({ w: 11 + 1 + (props.swatch !== undefined ? 9 : 0) + font.width(props.text) + 8 + 1 + 11, h });
+  const r = rect ?? ctx.place({ w: 11 + 1 + (props.swatch !== undefined ? 9 : 0) + ctx.measureText(props.text, { font }) + 8 + 1 + 11, h });
   const id = ctx.makeKey(props.key);
   const k = (part: string) => `${id}:${part}`;
   const prev = { x: r.x, y: r.y, w: 11, h: r.h };
@@ -60,8 +60,8 @@ export function stepper(ctx: Context, props: StepperProps, rect?: Rect): Stepper
     ctx.fillRect({ x, y: box.y + Math.floor((box.h - 5) / 2), w: 5, h: 5 }, props.swatch);
     x += 9;
   }
-  const shown = props.text.slice(0, fitText(font, props.text, box.x + box.w - 4 - x));
-  ctx.text(shown, x, box.y + Math.floor((box.h - font.height) / 2), { font, color: clickTone(theme, value, props.color) });
+  const color = clickTone(theme, value, props.color);
+  ctx.drawText(ctx.layoutText(props.text, { font, color, width: box.x + box.w - 4 - x, height: box.h, overflow: 'clip', valign: 'middle' }), x, box.y);
   return { step, value };
 }
 
@@ -93,9 +93,10 @@ export interface ScrubValueProps {
 export function scrubValue(ctx: Context, props: ScrubValueProps, rect?: Rect): number | null {
   const { colors: c, fonts } = useTheme(ctx);
   const outline = props.look === 'outline';
-  const font = ctx.font(outline ? fonts.text : fonts.small);
+  const font = outline ? fonts.text : fonts.small;
   const text = props.text ?? String(props.value);
-  const r = rect ?? ctx.place(outline ? { w: font.width(text) + 8, h: font.height + 4 } : { w: font.width(text) + 2, h: font.height + 5 });
+  const size = { w: ctx.measureText(text, { font }), h: ctx.fontMetrics(font).height };
+  const r = rect ?? ctx.place(outline ? { w: size.w + 8, h: size.h + 4 } : { w: size.w + 2, h: size.h + 5 });
   const dragPixels = props.dragPixels ?? (outline ? 0 : 2);
   const id = ctx.makeKey(props.key);
   const it = ctx.interaction(r, { key: `${id}:it`, click: dragPixels > 0, wheel: true, cursor: 'ns-resize', hint: props.hint });
@@ -116,11 +117,11 @@ export function scrubValue(ctx: Context, props: ScrubValueProps, rect?: Rect): n
   const hot = it.hovered || it.held;
   if (outline) {
     if (hot) ctx.strokeRect(r, c.paper);
-    const at = centerIn(r, { w: font.width(text), h: font.height });
+    const at = centerIn(r, size);
     ctx.text(text, at.x, at.y, { font, color: c.paper });
   } else {
     ctx.text(text, r.x + 1, r.y + 2, { font, color: hot ? c.paper : c.text });
-    ctx.hline(r.x + 1, r.y + 2 + font.height + 1, r.w - 2, hot ? c.accent : c.dim, { pattern: HALF });
+    ctx.hline(r.x + 1, r.y + 2 + size.h + 1, r.w - 2, hot ? c.accent : c.dim, { pattern: HALF });
   }
   return next;
 }

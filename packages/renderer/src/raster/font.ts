@@ -2,24 +2,13 @@
 // rows, so one format covers monospaced and proportional faces. Text is drawn
 // straight into a Surface in a palette index, at any integer scale.
 //
-// The renderer owns fonts: a FontRegistry is the core's FontSource, and
-// widgets ask for faces by name ('5x7', 'small') rather than importing them.
+// The faces come from the app, as data (a `FontSet`, like a palette); a
+// FontRegistry makes each into a font it can draw, and is the core's
+// FontSource: it measures and lays text out by name.
 
-import { DEFAULT_FONT, bitmap, type Bitmap, type Font, type FontSource } from '@synth-ui/core';
+import { bitmap, type AttributedText, type Bitmap, type BitmapFace, type FontFace, type FontSet, type TextLayout, type TextLayoutOptions } from '@synth-ui/core';
+import { basicTextLayout, type Font, type FontSource } from '@synth-ui/core/backend';
 import type { Surface } from './surface.js';
-
-export interface FontSpec {
-  /** Glyph rows, top to bottom, separated by spaces (see `bitmap`). */
-  glyphs: Record<string, string>;
-  /** Blank pixels between glyphs. */
-  spacing?: number;
-  /** Drawn for characters the font lacks. */
-  fallback?: string;
-  /** Characters drawn as other characters, e.g. `♯` → `#`. */
-  aliases?: Record<string, string>;
-  /** Show lowercase as uppercase. */
-  caps?: boolean;
-}
 
 export class BitmapFont implements Font {
   readonly height: number;
@@ -27,15 +16,16 @@ export class BitmapFont implements Font {
   private readonly glyphs = new Map<string, Bitmap>();
   private readonly fallback: Bitmap;
 
-  constructor(private readonly spec: FontSpec) {
-    for (const [ch, rows] of Object.entries(spec.glyphs)) this.glyphs.set(ch, bitmap(rows));
+  constructor(private readonly face: BitmapFace) {
+    for (const [ch, rows] of Object.entries(face.glyphs)) this.glyphs.set(ch, bitmap(rows));
+    if (!this.glyphs.size) throw new Error('synth-ui: a bitmap face needs at least one glyph');
     this.height = Math.max(...[...this.glyphs.values()].map((g) => g.h));
-    this.spacing = spec.spacing ?? 1;
-    this.fallback = this.glyphs.get(spec.fallback ?? '?') ?? [...this.glyphs.values()][0];
+    this.spacing = face.spacing ?? 1;
+    this.fallback = this.glyphs.get(face.fallback ?? '?') ?? [...this.glyphs.values()][0];
   }
 
   glyph(ch: string): Bitmap {
-    const { aliases, caps } = this.spec;
+    const { aliases, caps } = this.face;
     const c = aliases?.[ch] ?? (this.glyphs.has(ch) ? ch : caps ? ch.toUpperCase() : ch);
     return this.glyphs.get(c) ?? this.fallback;
   }
@@ -57,193 +47,44 @@ export class BitmapFont implements Font {
     }
     return cx;
   }
-
-  /** How many leading characters of `text` fit in `width` pixels. */
-  fit(text: string, width: number, scale = 1): number {
-    let w = -this.spacing * scale;
-    let n = 0;
-    for (const ch of text) {
-      w += (this.glyph(ch).w + this.spacing) * scale;
-      if (w > width) break;
-      n++;
-    }
-    return n;
-  }
 }
 
-// ------------------------------------------------------------------ 5×7 mono
-
-/** A small raised "m", for minor chords (Am): a plain lowercase m would show as M. */
-export const MINOR = 'ₘ';
-
-/** The tracker's face: 5×7, monospaced, uppercase. */
-export const FONT_5X7 = new BitmapFont({
-  caps: true,
-  aliases: { '♯': '#' },
-  glyphs: {
-    '♭': '#.... #.... #.... ###.. #..#. #..#. ###..',
-    '°': '.#... #.#.. .#... ..... ..... ..... .....',
-    [MINOR]: '..... ..... ##.#. #.#.# #.#.# #.#.# #...#',
-    A: '.###. #...# #...# ##### #...# #...# #...#',
-    B: '####. #...# #...# ####. #...# #...# ####.',
-    C: '.###. #...# #.... #.... #.... #...# .###.',
-    D: '####. #...# #...# #...# #...# #...# ####.',
-    E: '##### #.... #.... ####. #.... #.... #####',
-    F: '##### #.... #.... ####. #.... #.... #....',
-    G: '.###. #...# #.... #.### #...# #...# .####',
-    H: '#...# #...# #...# ##### #...# #...# #...#',
-    I: '.###. ..#.. ..#.. ..#.. ..#.. ..#.. .###.',
-    J: '..### ...#. ...#. ...#. ...#. #..#. .##..',
-    K: '#...# #..#. #.#.. ##... #.#.. #..#. #...#',
-    L: '#.... #.... #.... #.... #.... #.... #####',
-    M: '#...# ##.## #.#.# #.#.# #...# #...# #...#',
-    N: '#...# #...# ##..# #.#.# #..## #...# #...#',
-    O: '.###. #...# #...# #...# #...# #...# .###.',
-    P: '####. #...# #...# ####. #.... #.... #....',
-    Q: '.###. #...# #...# #...# #.#.# #..#. .##.#',
-    R: '####. #...# #...# ####. #.#.. #..#. #...#',
-    S: '.#### #.... #.... .###. ....# ....# ####.',
-    T: '##### ..#.. ..#.. ..#.. ..#.. ..#.. ..#..',
-    U: '#...# #...# #...# #...# #...# #...# .###.',
-    V: '#...# #...# #...# #...# #...# .#.#. ..#..',
-    W: '#...# #...# #...# #.#.# #.#.# #.#.# .#.#.',
-    X: '#...# #...# .#.#. ..#.. .#.#. #...# #...#',
-    Y: '#...# #...# .#.#. ..#.. ..#.. ..#.. ..#..',
-    Z: '##### ....# ...#. ..#.. .#... #.... #####',
-    '0': '.###. #...# #..## #.#.# ##..# #...# .###.',
-    '1': '..#.. .##.. ..#.. ..#.. ..#.. ..#.. .###.',
-    '2': '.###. #...# ....# ...#. ..#.. .#... #####',
-    '3': '##### ...#. ..#.. ...#. ....# #...# .###.',
-    '4': '...#. ..##. .#.#. #..#. ##### ...#. ...#.',
-    '5': '##### #.... ####. ....# ....# #...# .###.',
-    '6': '..##. .#... #.... ####. #...# #...# .###.',
-    '7': '##### ....# ...#. ..#.. .#... .#... .#...',
-    '8': '.###. #...# #...# .###. #...# #...# .###.',
-    '9': '.###. #...# #...# .#### ....# ...#. .##..',
-    ' ': '..... ..... ..... ..... ..... ..... .....',
-    '-': '..... ..... ..... ##### ..... ..... .....',
-    '.': '..... ..... ..... ..... ..... .##.. .##..',
-    '·': '..... ..... ..... ..#.. ..... ..... .....',
-    '#': '.#.#. .#.#. ##### .#.#. ##### .#.#. .#.#.',
-    '=': '..... ..... ##### ..... ##### ..... .....',
-    ':': '..... .##.. .##.. ..... .##.. .##.. .....',
-    '/': '....# ....# ...#. ..#.. .#... #.... #....',
-    '>': '.#... ..#.. ...#. ....# ...#. ..#.. .#...',
-    '<': '...#. ..#.. .#... #.... .#... ..#.. ...#.',
-    '|': '..#.. ..#.. ..#.. ..#.. ..#.. ..#.. ..#..',
-    '^': '..#.. .#.#. #...# ..... ..... ..... .....',
-    '+': '..... ..#.. ..#.. ##### ..#.. ..#.. .....',
-    '%': '##..# ##..# ...#. ..#.. .#... #..## #..##',
-    '?': '.###. #...# ....# ...#. ..#.. ..... ..#..',
-    "'": '..#.. ..#.. .#... ..... ..... ..... .....',
-    ',': '..... ..... ..... ..... .##.. ..#.. .#...',
-    '(': '...#. ..#.. .#... .#... .#... ..#.. ...#.',
-    ')': '.#... ..#.. ...#. ...#. ...#. ..#.. .#...',
-    '!': '..#.. ..#.. ..#.. ..#.. ..#.. ..... ..#..',
-    '[': '.###. .#... .#... .#... .#... .#... .###.',
-    ']': '.###. ...#. ...#. ...#. ...#. ...#. .###.',
-    '*': '..... #.#.# .###. ##### .###. #.#.# .....',
-    '&': '.##.. #..#. .##.. .#... #.#.# #..#. .##.#',
-    '_': '..... ..... ..... ..... ..... ..... #####',
-    '"': '.#.#. .#.#. ..... ..... ..... ..... .....',
-  },
-});
-
-/** Horizontal advance per 5×7 character: the tracker grid is laid out in these. */
-export const ADVANCE = 6;
-
-// ---------------------------------------------------------- 5px proportional
-
-/** A small proportional face for labels and dense controls: caps 5px tall. */
-export const FONT_SMALL = new BitmapFont({
-  caps: true,
-  aliases: { '♯': '#', '…': '.' },
-  glyphs: {
-    '♭': '#.. #.. ##. #.# ##.',
-    '°': '.#. #.# .#. ... ...',
-    [MINOR]: '..... ####. #.#.# #.#.# #.#.#',
-    A: '.##. #..# #### #..# #..#',
-    B: '###. #..# ###. #..# ###.',
-    C: '.### #... #... #... .###',
-    D: '###. #..# #..# #..# ###.',
-    E: '### #.. ##. #.. ###',
-    F: '### #.. ##. #.. #..',
-    G: '.### #... #.## #..# .###',
-    H: '#..# #..# #### #..# #..#',
-    I: '### .#. .#. .#. ###',
-    J: '...# ...# ...# #..# .##.',
-    K: '#..# #.#. ##.. #.#. #..#',
-    L: '#.. #.. #.. #.. ###',
-    M: '#...# ##.## #.#.# #...# #...#',
-    N: '#..# ##.# #.## #..# #..#',
-    O: '.##. #..# #..# #..# .##.',
-    P: '###. #..# ###. #... #...',
-    Q: '.##. #..# #..# #.#. .#.#',
-    R: '###. #..# ###. #.#. #..#',
-    S: '.### #... .##. ...# ###.',
-    T: '### .#. .#. .#. .#.',
-    U: '#..# #..# #..# #..# .##.',
-    V: '#...# #...# #...# .#.#. ..#..',
-    W: '#...# #...# #.#.# ##.## #...#',
-    X: '#.# #.# .#. #.# #.#',
-    Y: '#.# #.# .#. .#. .#.',
-    Z: '#### ...# .##. #... ####',
-    '0': '### #.# #.# #.# ###',
-    '1': '.#. ##. .#. .#. ###',
-    '2': '##. ..# .#. #.. ###',
-    '3': '##. ..# .#. ..# ##.',
-    '4': '#.# #.# ### ..# ..#',
-    '5': '### #.. ##. ..# ##.',
-    '6': '.## #.. ### #.# ###',
-    '7': '### ..# .#. .#. .#.',
-    '8': '### #.# ### #.# ###',
-    '9': '### #.# ### ..# ##.',
-    ' ': '.. .. .. .. ..',
-    '.': '. . . . #',
-    ',': '.. .. .. .# #.',
-    ':': '. # . # .',
-    '·': '. . # . .',
-    '-': '... ... ### ... ...',
-    '_': '... ... ... ... ###',
-    '/': '..# ..# .#. #.. #..',
-    '%': '#.# ..# .#. #.. #.#',
-    '#': '.#.#. ##### .#.#. ##### .#.#.',
-    '+': '... .#. ### .#. ...',
-    '=': '... ### ... ### ...',
-    '(': '.# #. #. #. .#',
-    ')': '#. .# .# .# #.',
-    '[': '## #. #. #. ##',
-    ']': '## .# .# .# ##',
-    '!': '# # # . #',
-    '?': '##. ..# .#. ... .#.',
-    "'": '# # . . .',
-    '"': '#.# #.# ... ... ...',
-    '>': '#.. .#. ..# .#. #..',
-    '<': '..# .#. #.. .#. ..#',
-    '*': '... #.# .#. #.# ...',
-    '&': '.#. #.# .#. #.# .##',
-  },
-});
+/** The font for a face, if the rasterizer can draw its kind. */
+function fontFor(name: string, face: FontFace): BitmapFont {
+  if (face.kind === 'bitmap') return new BitmapFont(face);
+  throw new Error(`synth-ui: the font "${name}" is a ${(face as { kind: string }).kind} face, which this renderer can't draw`);
+}
 
 // ---------------------------------------------------------------- registry
 
-/** Fonts by name, for the core to look up. Starts with the built-in faces; the 5×7 is the default. */
+/** Fonts by name, made from an app's faces. The default is `defaultFont`, else the set's first. */
 export class FontRegistry implements FontSource {
-  private readonly fonts = new Map<string, BitmapFont>([
-    ['5x7', FONT_5X7],
-    ['small', FONT_SMALL],
-  ]);
-  private fallback = '5x7';
+  readonly defaultFont: string;
+  private readonly fonts = new Map<string, BitmapFont>();
 
-  /** Add (or replace) a font; `asDefault` makes it the one used when none is named. */
-  register(name: string, font: BitmapFont, asDefault = false): void {
-    this.fonts.set(name, font);
-    if (asDefault) this.fallback = name;
+  constructor(faces: FontSet, defaultFont?: string) {
+    for (const [name, face] of Object.entries(faces)) this.register(name, face);
+    const first = this.fonts.keys().next();
+    this.defaultFont = defaultFont ?? (first.done ? '' : first.value);
+    if (!this.fonts.has(this.defaultFont)) throw new Error(defaultFont === undefined ? 'synth-ui: no fonts given' : `synth-ui: no font "${defaultFont}" to be the default`);
   }
 
-  font(name: string = DEFAULT_FONT): BitmapFont {
-    const font = this.fonts.get(name === DEFAULT_FONT ? this.fallback : name);
+  /** Add (or replace) a face. */
+  register(name: string, face: FontFace): void {
+    this.fonts.set(name, fontFor(name, face));
+  }
+
+  has(name: string): boolean {
+    return this.fonts.has(name);
+  }
+
+  font(name: string): BitmapFont {
+    const font = this.fonts.get(name);
     if (!font) throw new Error(`synth-ui: no font registered as "${name}"`);
     return font;
+  }
+
+  layoutText(text: AttributedText, opts: TextLayoutOptions & { font: string }): TextLayout {
+    return basicTextLayout(this.font(opts.font), text, opts);
   }
 }

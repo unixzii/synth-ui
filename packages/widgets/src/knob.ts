@@ -85,10 +85,10 @@ export function knob(ctx: Context, props: KnobProps, rect?: Rect): number | null
 
   const hot = it.hovered || it.held;
   drawKnob(ctx, cx, r.y + Math.floor(KNOB_SIZE / 2), props.value, hot, props.bipolar, it.held);
-  const font = ctx.font(fonts.small);
+  const font = fonts.small;
   const ly = r.y + KNOB_SIZE + 3;
-  ctx.text(props.label, r.x + Math.floor((r.w - font.width(props.label)) / 2), ly, { font, color: hot ? c.accent : c.text });
-  ctx.text(props.text, r.x + Math.floor((r.w - font.width(props.text)) / 2), ly + font.height + 3, { font, color: c.muted });
+  ctx.text(props.label, r.x + Math.floor((r.w - ctx.measureText(props.label, { font })) / 2), ly, { font, color: hot ? c.accent : c.text });
+  ctx.text(props.text, r.x + Math.floor((r.w - ctx.measureText(props.text, { font })) / 2), ly + ctx.fontMetrics(font).height + 3, { font, color: c.muted });
   return next;
 }
 

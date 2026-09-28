@@ -3,7 +3,7 @@
 
 import { Palette, type Context } from '@synth-ui/core';
 import { createWebHost } from '@synth-ui/renderer/web';
-import { ICONS, THEME_COLORS, iconButton, label, statusLine, tabs, tooltip, useTheme } from '@synth-ui/widgets';
+import { ICONS, THEME_COLORS, THEME_FONTS, iconButton, label, statusLine, tabs, tooltip, useTheme } from '@synth-ui/widgets';
 import { app } from './app';
 import { controlsPage } from './pages/controls';
 import { corePage } from './pages/core';
@@ -14,6 +14,7 @@ import { textPage } from './pages/text';
 const palette = new Palette(THEME_COLORS);
 const host = createWebHost(document.getElementById('app')!, {
   palette,
+  fonts: THEME_FONTS,
   resolution: { width: 640, height: 400 },
   background: palette.index.void,
   label: 'synth-ui demo',

@@ -1,4 +1,5 @@
-import { NO_MODIFIERS, Palette, UI, type Context, type Font, type InputEvent, type Modifiers } from '@synth-ui/core';
+import { NO_MODIFIERS, Palette, UI, bitmap, type Context, type InputEvent, type Modifiers } from '@synth-ui/core';
+import { basicTextLayout, type Font, type FontSource } from '@synth-ui/core/backend';
 import { describe, expect, it } from 'vitest';
 import { button } from './button.js';
 import { knob, slider } from './knob.js';
@@ -8,13 +9,15 @@ import { scrollView } from './scroll.js';
 import { statusLine } from './status.js';
 import { History, erase, insert, moveTo, wordAt, wordLeft, wordRight, type Edit } from './textedit.js';
 import { textField } from './textfield.js';
-import { THEME_COLORS } from './theme.js';
+import { THEME_COLORS, THEME_FONTS } from './theme.js';
 
 const mono: Font = { height: 5, spacing: 1, width: (t, s = 1) => Math.max(0, t.length * 4 - 1) * s };
+// Every theme font measures as `mono`.
+const fonts: FontSource = { defaultFont: 'text', has: (name) => name in THEME_FONTS, font: () => mono, layoutText: (text, opts) => basicTextLayout(mono, text, opts) };
 const palette = new Palette(THEME_COLORS);
 
 function harness(width = 200, height = 150) {
-  const ui = new UI({ palette, fonts: { font: () => mono } });
+  const ui = new UI({ palette, fonts });
   let time = 0;
   const frame = (paint: (ctx: Context) => void, events: InputEvent[] = []) => ui.frame({ width, height, time: (time += 10), events }, paint);
   /** Frames until animations settle. */
@@ -30,6 +33,15 @@ const up = (x: number, y: number): InputEvent => ({ type: 'pointerup', x, y, but
 const click = (x: number, y: number) => [{ type: 'pointermove', x, y, mods: m } as InputEvent, down(x, y), up(x, y)];
 const key = (k: string, mods: Partial<Modifiers> = {}): InputEvent => ({ type: 'keydown', key: k, code: '', repeat: false, mods: { ...m, ...mods } });
 const type = (text: string): InputEvent => ({ type: 'text', text });
+
+describe('THEME_FONTS', () => {
+  it('has every glyph of a face at the same height', () => {
+    for (const face of Object.values(THEME_FONTS)) {
+      const heights = new Set(Object.values(face.glyphs).map((rows) => bitmap(rows).h));
+      expect(heights.size).toBe(1);
+    }
+  });
+});
 
 describe('text editing', () => {
   const e = (text: string, anchor: number, focus = anchor): Edit => ({ text, anchor, focus });

@@ -13,11 +13,12 @@
 // in a frame is dropped at the end of that frame.
 
 import { type Pattern, SOLID, type Bitmap } from './bitmap.js';
-import { type Font, type TextStyle, DEFAULT_FONT } from './font.js';
+import type { FontMetrics, TextStyle } from './font.js';
 import { type Point, type Rect, type Size, inside, intersect, inset as insetRect } from './geometry.js';
 import { isTypingCombo, type CursorStyle, type KeyCombo, type Modifiers } from './input.js';
 import type { ColorMap, Palette } from './palette.js';
 import type { DrawCommand } from './scene.js';
+import type { AttributedText, TextLayout, TextLayoutOptions } from './text.js';
 import { ease, EASE } from './animation.js';
 import { resolveFilter, type FilterOptions } from './filter.js';
 import type { KeyEvent, TextEvent, UI } from './ui.js';
@@ -607,11 +608,21 @@ export class Context {
 
   /** A line of text, its top left at (x, y). Returns the x where the next text would follow on. */
   text(text: string, x: number, y: number, style: TextStyle): number {
-    const font = this.font(style.font);
+    const name = style.font ?? this.ui.fonts.defaultFont;
+    const font = this.ui.fonts.font(name);
     const scale = style.scale ?? 1;
-    const ax = this.ox + Math.round(x);
-    if (text) this.push({ op: 'text', clip: this.clipIndex, font, text, x: ax, y: this.oy + Math.round(y), color: style.color, scale });
+    if (text) this.push({ op: 'text', clip: this.clipIndex, font: name, text, x: this.ox + Math.round(x), y: this.oy + Math.round(y), color: style.color, scale });
     return Math.round(x) + (text ? font.width(text, scale) + font.spacing * scale : 0);
+  }
+
+  /** A text layout, its box's top left at (x, y): backgrounds, then glyphs, then underlines. */
+  drawText(layout: TextLayout, x: number, y: number): void {
+    const [ox, oy] = [Math.round(x), Math.round(y)];
+    for (const r of layout.runs) if (r.background !== undefined) this.fillRect({ ...r.box, x: ox + r.box.x, y: oy + r.box.y }, r.background);
+    for (const r of layout.runs) {
+      this.push({ op: 'text', clip: this.clipIndex, font: layout.font, text: r.text, x: this.ox + ox + r.rect.x, y: this.oy + oy + r.rect.y, color: r.color, scale: layout.scale });
+    }
+    for (const r of layout.runs) if (r.underline !== undefined && r.rect.w > 0) this.hline(ox + r.rect.x, oy + r.rect.y + r.rect.h + 1, r.rect.w, r.underline);
   }
 
   /** Rework what's drawn in `r` through a colour map: washes, fades, tints. */
@@ -636,13 +647,24 @@ export class Context {
 
   // ---------------------------------------------------------------- text
 
-  /** A font by registered name (or the default), or the font itself. */
-  font(font?: string | Font): Font {
-    return typeof font === 'object' ? font : this.ui.fonts.font(font ?? DEFAULT_FONT);
+  /** A font is registered as `name`. */
+  hasFont(name: string): boolean {
+    return this.ui.hasFont(name);
   }
 
+  /** What the font named (or the default font) measures, at scale 1. */
+  fontMetrics(font?: string): FontMetrics {
+    return this.ui.fontMetrics(font);
+  }
+
+  /** Width of `text` in pixels, without trailing spacing. */
   measureText(text: string, style: Omit<TextStyle, 'color'> = {}): number {
-    return this.font(style.font).width(text, style.scale ?? 1);
+    return this.ui.measureText(text, style);
+  }
+
+  /** Set `text` in a box, to draw with `drawText()` or to find where its characters are. */
+  layoutText(text: AttributedText, opts?: TextLayoutOptions): TextLayout {
+    return this.ui.layoutText(text, opts);
   }
 
   // ---------------------------------------------------------------- helpers

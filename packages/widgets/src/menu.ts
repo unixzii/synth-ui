@@ -58,9 +58,8 @@ export function menu(ctx: Context, props: MenuProps): MenuResult {
 
   ctx.overlay(
     (o) => {
-      const small = o.font(fonts.small);
-      const text = o.font(fonts.text);
-      const natural = Math.max(...items.map((it) => text.width(it.label) + (it.shortcut ? small.width(it.shortcut) + 12 : 0))) + 12;
+      const { small, text } = fonts;
+      const natural = Math.max(...items.map((it) => o.measureText(it.label, { font: text }) + (it.shortcut ? o.measureText(it.shortcut, { font: small }) + 12 : 0))) + 12;
       const w = Math.max(props.w ?? props.anchor.w, natural);
       const h = items.length * ITEM_H + 4;
       const screen = o.screen;
@@ -99,8 +98,8 @@ export function menu(ctx: Context, props: MenuProps): MenuResult {
             const it = items[i];
             if (on) m.fillRect({ x: 1, y: top, w: w - 2, h: ITEM_H }, c.line);
             const color = it.disabled ? c.dim : i === props.selected ? c.accent : on ? c.paper : c.text;
-            m.text(it.label, 6, top + center(ITEM_H, text.height), { font: text, color });
-            if (it.shortcut) m.text(it.shortcut, w - 6 - small.width(it.shortcut), top + center(ITEM_H, small.height), { font: small, color: c.slate });
+            m.text(it.label, 6, top + center(ITEM_H, m.fontMetrics(text).height), { font: text, color });
+            if (it.shortcut) m.text(it.shortcut, w - 6 - m.measureText(it.shortcut, { font: small }), top + center(ITEM_H, m.fontMetrics(small).height), { font: small, color: c.slate });
           };
           // Closing, the leaving item is pushed along by the edge coming in, over the others, into the anchor.
           const leaving = !open && s.leaving >= 0 && s.leaving < items.length;
@@ -159,18 +158,19 @@ export interface DropdownProps<T> {
 export function dropdown<T>(ctx: Context, props: DropdownProps<T>, rect?: Rect): T | null {
   const theme = useTheme(ctx);
   const { colors: c, fonts } = theme;
-  const font = ctx.font(fonts.text);
+  const font = fonts.text;
+  const fh = ctx.fontMetrics(font).height;
   const id = ctx.makeKey(props.key);
   const k = (part: string) => `${id}:${part}`;
   const s = ctx.state(() => ({ open: false }), { key: k('state') });
   const current = props.options.findIndex((o) => o.value === props.value);
-  const r = rect ?? ctx.place({ w: Math.max(...[...props.options.map((o) => o.label), props.placeholder ?? ''].map((l) => font.width(l))) + 8 + 12, h: props.h ?? 13 });
+  const r = rect ?? ctx.place({ w: Math.max(...[...props.options.map((o) => o.label), props.placeholder ?? ''].map((l) => ctx.measureText(l, { font }))) + 8 + 12, h: props.h ?? 13 });
 
   const it = ctx.interaction(r, { key: k('button'), click: !props.disabled, cursor: props.disabled ? undefined : 'pointer', hint: props.disabled ? undefined : props.hint });
   if (props.disabled) {
     s.open = false;
     ctx.strokeRect(r, c.control);
-    ctx.text(props.options[current]?.label ?? props.placeholder ?? '', r.x + 4, r.y + center(r.h, font.height), { font, color: c.dim });
+    ctx.text(props.options[current]?.label ?? props.placeholder ?? '', r.x + 4, r.y + center(r.h, fh), { font, color: c.dim });
     ctx.bitmap(ICONS.down, r.x + r.w - 9, r.y + center(r.h, ICONS.down.h), c.line);
     menu(ctx, { items: props.options, anchor: r, open: false, key: k('menu') });
     return null;
@@ -184,7 +184,7 @@ export function dropdown<T>(ctx: Context, props: DropdownProps<T>, rect?: Rect):
   const shown = props.options[current]?.label;
   // Open reads as pressed.
   const tone = clickTone(theme, { hovered: it.hovered, held: it.held || s.open }, shown === undefined ? c.muted : undefined);
-  ctx.text(shown ?? props.placeholder ?? '', b.x + 4, b.y + center(b.h, font.height), { font, color: tone });
+  ctx.text(shown ?? props.placeholder ?? '', b.x + 4, b.y + center(b.h, fh), { font, color: tone });
   ctx.bitmap(ICONS.down, b.x + b.w - 9, b.y + center(b.h, ICONS.down.h), s.open ? c.accent : c.muted);
 
   const res = menu(ctx, { items: props.options, anchor: r, open: s.open, selected: current < 0 ? undefined : current, key: k('menu') });

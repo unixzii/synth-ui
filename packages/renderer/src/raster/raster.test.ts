@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { Palette, UI, bitmap, dither, ramp, type Context, type Font, type Scene } from '@synth-ui/core';
-import { BitmapFont, FONT_5X7, FONT_SMALL, FontRegistry } from './font.js';
+import { Palette, UI, bitmap, dither, ramp, type BitmapFace, type Context, type Scene } from '@synth-ui/core';
+import { BitmapFont, FontRegistry } from './font.js';
 import { rasterize } from './rasterize.js';
 import { Surface } from './surface.js';
+
+// A 3×3 face with a narrow I, caps only.
+const FACE: BitmapFace = {
+  kind: 'bitmap',
+  caps: true,
+  glyphs: { '?': '### ..# .#.', A: '.#. ### #.#', I: '# # #', ' ': '... ... ...' },
+};
 
 const rows = (s: Surface) =>
   Array.from({ length: s.height }, (_, y) => Array.from(s.data.subarray(y * s.width, (y + 1) * s.width)).join(''));
@@ -82,43 +89,30 @@ describe('dithered fills', () => {
 });
 
 describe('BitmapFont', () => {
-  it('measures without trailing spacing and draws uppercase', () => {
-    expect(FONT_5X7.width('AB')).toBe(11);
-    expect(FONT_5X7.width('AB', 2)).toBe(22);
-    const s = new Surface(12, 7);
-    const end = FONT_5X7.draw(s, 'i', 0, 0, 1);
-    expect(end).toBe(6);
-    expect(rows(s)[0].slice(0, 5)).toBe('01110');
+  const font = new BitmapFont(FACE);
+
+  it('measures without trailing spacing, proportionally, and draws uppercase', () => {
+    expect(font.width('AI')).toBe(5);
+    expect(font.width('AI', 2)).toBe(10);
+    const s = new Surface(6, 3);
+    expect(font.draw(s, 'ai', 0, 0, 1)).toBe(6);
+    expect(rows(s)).toEqual(['010010', '111010', '101010']);
   });
 
-  it('is proportional when glyphs differ in width', () => {
-    expect(FONT_SMALL.width('I')).toBe(3);
-    expect(FONT_SMALL.width('M')).toBe(5);
-    expect(FONT_SMALL.width('IM')).toBe(9);
-  });
-
-  it('falls back for missing glyphs and counts what fits', () => {
-    const font = new BitmapFont({ glyphs: { '?': '## ##', A: '# #' } });
+  it('falls back for missing glyphs', () => {
     expect(font.glyph('Z')).toBe(font.glyph('?'));
-    expect(font.fit('AAAA', 5)).toBe(3);
-  });
-
-  it('has every glyph at the font height', () => {
-    for (const font of [FONT_5X7, FONT_SMALL]) {
-      for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .:-/#') expect(font.glyph(ch).h).toBe(font.height);
-    }
   });
 });
 
 describe('FontRegistry', () => {
-  it('serves the built-in faces by name, the 5×7 as the default', () => {
-    const fonts = new FontRegistry();
-    expect(fonts.font()).toBe(FONT_5X7);
-    expect(fonts.font('small')).toBe(FONT_SMALL);
-    const big = new BitmapFont({ glyphs: { A: '## ##' } });
-    fonts.register('big', big, true);
-    expect(fonts.font()).toBe(big);
+  it('makes fonts from faces, the first the default unless one is named', () => {
+    const fonts = new FontRegistry({ a: FACE, b: { ...FACE, spacing: 2 } });
+    expect(fonts.defaultFont).toBe('a');
+    expect(fonts.font('b').spacing).toBe(2);
+    expect(new FontRegistry({ a: FACE, b: FACE }, 'b').defaultFont).toBe('b');
     expect(() => fonts.font('nope')).toThrow();
+    expect(() => new FontRegistry({ a: FACE }, 'nope')).toThrow();
+    expect(() => new FontRegistry({})).toThrow();
   });
 });
 
@@ -143,31 +137,26 @@ describe('rasterize', () => {
         ],
       ),
       s,
+      new FontRegistry({ face: FACE }),
     );
     expect(rows(s)).toEqual(['0000', '0110', '0002']);
   });
 
-  it('draws text in bitmap fonts and skips fonts it does not know', () => {
+  it('draws text in the fonts it names', () => {
     const s = new Surface();
-    const stranger: Font = { height: 1, spacing: 0, width: () => 1 };
-    rasterize(
-      scene([
-        { op: 'text', clip: 0, font: new BitmapFont({ glyphs: { I: '# #' } }), text: 'II', x: 0, y: 0, color: 1, scale: 1 },
-        { op: 'text', clip: 0, font: stranger, text: 'x', x: 0, y: 2, color: 1, scale: 1 },
-      ]),
-      s,
-    );
-    expect(rows(s)).toEqual(['1010', '1010', '0000']);
+    rasterize(scene([{ op: 'text', clip: 0, font: 'face', text: 'II', x: 0, y: 0, color: 1, scale: 1 }]), s, new FontRegistry({ face: FACE }));
+    expect(rows(s)).toEqual(['1010', '1010', '1010']);
   });
 
   it('fades the edge of a region into a colour by ordered dither, within its clip', () => {
-    const ui = new UI({ palette, fonts: new FontRegistry() });
+    const fonts = new FontRegistry({ face: FACE });
+    const ui = new UI({ palette, fonts });
     const paint = (ctx: Context) => {
       ctx.fillRect({ x: 0, y: 0, w: 8, h: 4 }, 1);
       ctx.allocate({ x: 0, y: 0, w: 6, h: 4 }, (c) => c.filter({ x: 2, y: 0, w: 6, h: 4 }, { to: 0, strength: ramp('right') }), { clip: true });
     };
     const s = new Surface();
-    rasterize(ui.frame({ width: 8, height: 4, time: 0, events: [] }, paint).scene, s);
+    rasterize(ui.frame({ width: 8, height: 4, time: 0, events: [] }, paint).scene, s, fonts);
     // How many of each column's pixels became 0: none at the start, all at the end, more each step.
     const faded = Array.from({ length: 8 }, (_, x) => rows(s).filter((row) => row[x] === '0').length);
     expect(faded.slice(0, 3)).toEqual([0, 0, 0]);

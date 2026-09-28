@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Context, Interaction } from './context.js';
-import type { Font } from './font.js';
+import { basicTextLayout, type Font, type FontSource } from './backend.js';
 import { NO_MODIFIERS, canonicalCombo, comboOf, type InputEvent } from './input.js';
 import { Palette } from './palette.js';
 import { UI } from './ui.js';
 
 const mono: Font = { height: 7, spacing: 1, width: (t, s = 1) => Math.max(0, t.length * 6 - 1) * s };
+const fonts: FontSource = { defaultFont: 'mono', has: (name) => name === 'mono', font: () => mono, layoutText: (text, opts) => basicTextLayout(mono, text, opts) };
 const palette = new Palette([
   ['bg', '#000000'],
   ['fg', '#FFFFFF'],
@@ -13,7 +14,7 @@ const palette = new Palette([
 
 /** A UI and a way to run frames of it, 10 ms apart. */
 function harness(mac = false) {
-  const ui = new UI({ palette, fonts: { font: () => mono }, mac });
+  const ui = new UI({ palette, fonts, mac });
   let time = 0;
   const frame = (paint: (ctx: Context) => void, events: InputEvent[] = []) => ui.frame({ width: 100, height: 100, time: (time += 10), events }, paint);
   return { ui, frame };

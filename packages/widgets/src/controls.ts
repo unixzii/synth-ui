@@ -21,10 +21,11 @@ export interface TextButtonProps {
 /** Text that acts as a button: lighter under the pointer, the accent while pressed. Returns its interaction: check `clicked`. */
 export function textButton(ctx: Context, props: TextButtonProps, rect?: Rect): Interaction {
   const theme = useTheme(ctx);
-  const font = ctx.font(theme.fonts.text);
-  const r = rect ?? ctx.place({ w: font.width(props.label) + 4, h: font.height + 4 });
+  const font = theme.fonts.text;
+  const size = { w: ctx.measureText(props.label, { font }), h: ctx.fontMetrics(font).height };
+  const r = rect ?? ctx.place({ w: size.w + 4, h: size.h + 4 });
   const it = ctx.interaction(r, { key: props.key, click: !props.disabled, cursor: props.disabled ? undefined : 'pointer', hint: props.disabled ? undefined : props.hint });
-  const at = centerIn(r, { w: font.width(props.label), h: font.height });
+  const at = centerIn(r, size);
   if (props.disabled) ctx.text(props.label, at.x, at.y, { font, color: theme.colors.dim });
   else ctx.text(props.label, at.x, at.y + (it.held ? 1 : 0), { font, color: clickTone(theme, it, props.color) });
   return it;
@@ -62,12 +63,12 @@ const option = <T,>(o: ChipOption<T> | (T & string)): ChipOption<T> => (typeof o
  */
 export function chipGroup<T>(ctx: Context, props: ChipGroupProps<T>, rect?: Rect): T | null {
   const { colors: c, fonts } = useTheme(ctx);
-  const font = ctx.font(fonts.small);
+  const font = fonts.small;
   const opts = props.options.map(option);
   const gap = props.gap ?? 3;
   const h = props.h ?? 11;
   const pad = props.pad ?? 4;
-  const natural = opts.map((o) => (o.icon ? o.icon.w + 6 : font.width(o.label ?? String(o.value)) + pad * 2 + 2));
+  const natural = opts.map((o) => (o.icon ? o.icon.w + 6 : ctx.measureText(o.label ?? String(o.value), { font }) + pad * 2 + 2));
   const total = natural.reduce((a, b) => a + b, 0) + gap * (opts.length - 1);
   const r = rect ?? ctx.place({ w: total, h });
   // Spare width is shared out, the first chips taking the odd pixels.
@@ -109,9 +110,8 @@ export interface SegmentedProps<T> {
 /** Equal cells in one bar, the chosen one lit by a light that glides to it. Returns the value clicked, if any. */
 export function segmented<T>(ctx: Context, props: SegmentedProps<T>, rect?: Rect): T | null {
   const { colors: c, fonts } = useTheme(ctx);
-  const font = ctx.font(fonts.small);
   const opts = props.options.map(option);
-  const cellW = Math.max(...opts.map((o) => font.width(o.label ?? String(o.value)))) + 16;
+  const cellW = Math.max(...opts.map((o) => ctx.measureText(o.label ?? String(o.value), { font: fonts.small }))) + 16;
   const r = rect ?? ctx.place({ w: cellW * opts.length, h: props.h ?? 13 });
   const w = Math.floor(r.w / opts.length);
   const at = Math.max(0, opts.findIndex((o) => o.value === props.value));
@@ -145,7 +145,7 @@ export interface CheckboxProps {
 const BOX = 7;
 
 export function checkboxSize(ctx: Context, props: Pick<CheckboxProps, 'label'>): Size {
-  return { w: BOX + 4 + ctx.font(useTheme(ctx).fonts.small).width(props.label), h: 9 };
+  return { w: BOX + 4 + ctx.measureText(props.label, { font: useTheme(ctx).fonts.small }), h: 9 };
 }
 
 /** A box and its label, both clickable; the caller flips `checked` when it's clicked. */

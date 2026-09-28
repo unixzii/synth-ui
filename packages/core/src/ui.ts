@@ -12,13 +12,16 @@
 
 import { type Point, type Rect, inside } from './geometry.js';
 import { Context } from './context.js';
-import type { FontSource } from './font.js';
+import type { FontSource } from './backend.js';
+import type { FontMetrics, TextStyle } from './font.js';
 import { type CursorStyle, type InputEvent, type Modifiers, NO_MODIFIERS, canonicalCombo, comboOf } from './input.js';
 import type { Palette } from './palette.js';
 import type { DrawCommand, Scene } from './scene.js';
+import type { AttributedText, TextLayout, TextLayoutOptions } from './text.js';
 
 export interface UIOptions {
   palette: Palette;
+  /** The renderer's fonts. */
   fonts: FontSource;
   /** Index each frame is cleared to. */
   background?: number;
@@ -182,6 +185,29 @@ export class UI {
     this.take(input.events);
     paint(Context.root(this));
     return this.finish();
+  }
+
+  // ------------------------------------------------ text
+
+  /** A font is registered as `name`. */
+  hasFont(name: string): boolean {
+    return this.fonts.has(name);
+  }
+
+  /** What the font named (or the default font) measures, at scale 1. */
+  fontMetrics(font?: string): FontMetrics {
+    const f = this.fonts.font(font ?? this.fonts.defaultFont);
+    return { height: f.height, spacing: f.spacing };
+  }
+
+  /** Width of `text` in pixels, without trailing spacing. */
+  measureText(text: string, style: Omit<TextStyle, 'color'> = {}): number {
+    return this.fonts.font(style.font ?? this.fonts.defaultFont).width(text, style.scale ?? 1);
+  }
+
+  /** Set `text` in a box: lines, runs to draw with `Context.drawText()`, and where each character is. */
+  layoutText(text: AttributedText, opts: TextLayoutOptions = {}): TextLayout {
+    return this.fonts.layoutText(text, { ...opts, font: opts.font ?? this.fonts.defaultFont });
   }
 
   // ------------------------------------------------ input routing

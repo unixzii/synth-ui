@@ -35,9 +35,8 @@ export interface StatusLineProps {
  */
 export function statusLine(ctx: Context, props: StatusLineProps, rect?: Rect): void {
   const { colors: c, fonts } = useTheme(ctx);
-  const font = ctx.font(fonts.small);
   const b = ctx.bounds;
-  const r = rect ?? ctx.place({ w: b.x + b.w - ctx.cursor.x, h: font.height + 4 });
+  const r = rect ?? ctx.place({ w: b.x + b.w - ctx.cursor.x, h: ctx.fontMetrics(fonts.small).height + 4 });
   const id = ctx.makeKey(props.key);
   const s = ctx.state(() => ({ message: null as StatusMessage | null, since: 0, shown: '' }), { key: `${id}:state` });
   const message = props.message?.text ? props.message : null;
@@ -99,10 +98,10 @@ export function tooltip(ctx: Context, props: TooltipProps = {}): void {
     return;
   }
   s.shown = true;
-  const font = ctx.font(fonts.small);
+  const fh = ctx.fontMetrics(fonts.small).height;
   const screen = ctx.screen;
-  const w = Math.min(font.width(s.text) + 8, screen.w - 4);
-  const h = font.height + 6;
+  const w = Math.min(ctx.measureText(s.text, { font: fonts.small }) + 8, screen.w - 4);
+  const h = fh + 6;
   // Below and right of where the pointer came to rest, kept on screen.
   let x = Math.round(s.x) + 6;
   let y = Math.round(s.y) + 12;
@@ -112,6 +111,6 @@ export function tooltip(ctx: Context, props: TooltipProps = {}): void {
     const box = { x, y, w, h };
     o.fillRect(box, c.panel);
     o.strokeRect(box, c.dim);
-    label(o, s.text, { font: 'small', color: c.text }, { x: x + 4, y: y + 3, w: w - 8, h: font.height });
+    label(o, s.text, { font: 'small', color: c.text }, { x: x + 4, y: y + 3, w: w - 8, h: fh });
   });
 }

@@ -29,10 +29,9 @@ export interface TabsProps {
 /** A row of tabs; the selected one's backing glides to it. Returns the tab pressed this frame, if any. */
 export function tabs(ctx: Context, props: TabsProps, rect?: Rect): number | null {
   const { colors: c, fonts } = useTheme(ctx);
-  const text = ctx.font(fonts.text);
-  const small = ctx.font(fonts.small);
+  const { text, small } = fonts;
   const gap = props.gap ?? 2;
-  const widths = props.tabs.map((t) => (t.shortcut ? small.width(t.shortcut) + 3 : 0) + text.width(t.label) + 10);
+  const widths = props.tabs.map((t) => (t.shortcut ? ctx.measureText(t.shortcut, { font: small }) + 3 : 0) + ctx.measureText(t.label, { font: text }) + 10);
   const r = rect ?? ctx.place({ w: widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1), h: props.h ?? 12 });
   const xs = widths.map((_, i) => r.x + widths.slice(0, i).reduce((a, b) => a + b + gap, 0));
   const sel = Math.min(Math.max(0, props.selected), props.tabs.length - 1);
@@ -51,8 +50,8 @@ export function tabs(ctx: Context, props: TabsProps, rect?: Rect): number | null
     const on = i === sel;
     if (its[i].pressed) picked = i;
     let x = xs[i] + 5;
-    if (t.shortcut) x = ctx.text(t.shortcut, x, r.y + center(r.h, small.height), { font: small, color: on ? c.accent : c.slate }) + 2;
-    ctx.text(t.label, x, r.y + center(r.h, text.height), { font: text, color: on ? c.paper : its[i].hovered ? c.text : c.muted });
+    if (t.shortcut) x = ctx.text(t.shortcut, x, r.y + center(r.h, ctx.fontMetrics(small).height), { font: small, color: on ? c.accent : c.slate }) + 2;
+    ctx.text(t.label, x, r.y + center(r.h, ctx.fontMetrics(text).height), { font: text, color: on ? c.paper : its[i].hovered ? c.text : c.muted });
   });
   return picked;
 }
@@ -74,10 +73,12 @@ export function card(ctx: Context, props: CardProps, rect?: Rect): Context {
   const { colors: c, fonts } = useTheme(ctx);
   const b = ctx.bounds;
   const r = rect ?? ctx.place({ w: b.x + b.w - ctx.cursor.x, h: props.h ?? b.y + b.h - ctx.cursor.y });
-  const font = ctx.font(fonts.small);
-  label(ctx, props.title, { font: 'small', color: c.muted }, { x: r.x, y: r.y, w: r.w - (props.right ? font.width(props.right) + 6 : 0), h: font.height });
-  if (props.right) ctx.text(props.right, r.x + r.w - font.width(props.right), r.y, { font, color: c.slate });
-  const top = r.y + font.height + 3;
+  const font = fonts.small;
+  const fh = ctx.fontMetrics(font).height;
+  const right = props.right ? ctx.measureText(props.right, { font }) : 0;
+  label(ctx, props.title, { font, color: c.muted }, { x: r.x, y: r.y, w: r.w - (props.right ? right + 6 : 0), h: fh });
+  if (props.right) ctx.text(props.right, r.x + r.w - right, r.y, { font, color: c.slate });
+  const top = r.y + fh + 3;
   const frame = { x: r.x, y: top, w: r.w, h: r.y + r.h - top };
   ctx.strokeRect(frame, c.line);
   const pad = (props.pad ?? 5) + 1;

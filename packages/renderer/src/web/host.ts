@@ -3,7 +3,7 @@
 // since the last one, rasterizes the Scene that comes back into an indexed
 // surface, and presents it through WebGL (a simulated CRT) or Canvas 2D.
 
-import { UI, type Context, type Palette } from '@synth-ui/core';
+import { UI, type Context, type FontSet, type Palette } from '@synth-ui/core';
 import { FontRegistry } from '../raster/font.js';
 import { rasterize } from '../raster/rasterize.js';
 import { Surface } from '../raster/surface.js';
@@ -13,6 +13,10 @@ import { WebScreen, type ScreenMode } from './screen.js';
 
 export type WebHostOptions = ScreenMode & {
   palette: Palette;
+  /** The faces text can be set in, by name, e.g. the widgets' THEME_FONTS. */
+  fonts: FontSet;
+  /** The font used when none is named. Default the first in `fonts`. */
+  defaultFont?: string;
   /** Index the frame is cleared to; also the letterbox colour. Default 0. */
   background?: number;
   fx?: PostFx;
@@ -27,7 +31,7 @@ export type WebHostOptions = ScreenMode & {
 
 export class WebHost {
   readonly ui: UI;
-  readonly fonts = new FontRegistry();
+  readonly fonts: FontRegistry;
   readonly screen: WebScreen;
   readonly backend: PixelBackend;
   /** The CRT, changeable at any time. */
@@ -44,6 +48,7 @@ export class WebHost {
 
   constructor(parent: HTMLElement, opts: WebHostOptions) {
     const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    this.fonts = new FontRegistry(opts.fonts, opts.defaultFont);
     this.ui = new UI({ palette: opts.palette, fonts: this.fonts, background: opts.background, mac });
     this.screen = new WebScreen(parent, opts);
     this.screen.el.style.background = opts.palette.hex(opts.background ?? 0);
@@ -109,7 +114,7 @@ export class WebHost {
     this.dirty = false;
     const out = this.ui.frame({ width: screen.width, height: screen.height, time, events: this.events.drain() }, paint);
     this.animating = out.animating;
-    rasterize(out.scene, this.surface);
+    rasterize(out.scene, this.surface, this.fonts);
     if (screen.out.w && screen.out.h) this.backend.present(this.surface, out.scene.palette, screen.out, this.fx, time);
     if (out.cursor !== this.cursor) this.screen.canvas.style.cursor = this.cursor = out.cursor;
     this.events.update(out.textInput, out.shortcuts);
