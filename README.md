@@ -310,8 +310,8 @@ npm); that takes about half a minute, so `dev` and `typecheck` skip it.
 `pnpm release` runs the tests and publishes every package whose version
 isn't on npm yet; each package cleans and builds itself before it's packed.
 The demo deploys to Vercel as configured in `vercel.json`: its build
-(`scripts/vercel-build.sh`) installs Rust and `wasm-bindgen-cli` first, since
-Vercel's build image has neither.
+(`scripts/vercel-build.sh`) first makes sure of Rust with the wasm target,
+and installs `wasm-bindgen-cli`.
 
 The repository is a pnpm workspace. Inside it, the packages and the playground resolve `@synth-ui/*` to each
 other's sources through the `@synth-ui/source` export condition, so nothing
