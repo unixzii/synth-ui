@@ -64,6 +64,16 @@ Each control's doc comment and props describe how to use it.
 
 ## Using it
 
+### Installing
+
+```bash
+npm install @synth-ui/core @synth-ui/widgets @synth-ui/backend
+```
+
+The packages are ES modules only. `@synth-ui/backend` loads its WebAssembly
+with `new URL(…, import.meta.url)`, which bundlers such as Vite and webpack 5
+pick up and emit on their own.
+
 ### A frame
 
 ```ts
@@ -294,6 +304,12 @@ pnpm build:wasm   # just the wasm (--dev for an unoptimized build)
 
 `pnpm dev`, `typecheck` and the builds build the wasm first, into
 `packages/backend/pkg/` (not checked in).
+
+`pnpm release` runs the tests and publishes every package whose version
+isn't on npm yet; each package cleans and builds itself before it's packed.
+The demo deploys to Vercel as configured in `vercel.json`: its build
+(`scripts/vercel-build.sh`) installs Rust and `wasm-bindgen-cli` first, since
+Vercel's build image has neither.
 
 The repository is a pnpm workspace. Inside it, the packages and the playground resolve `@synth-ui/*` to each
 other's sources through the `@synth-ui/source` export condition, so nothing

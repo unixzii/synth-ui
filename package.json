@@ -16,7 +16,8 @@
     "build:demo": "node scripts/build-wasm.mjs && pnpm --filter synth-ui-demo build",
     "typecheck": "node scripts/build-wasm.mjs && pnpm -r typecheck",
     "test": "vitest run && cargo test -p synth-backend",
-    "clean": "pnpm -r clean && cargo clean"
+    "clean": "pnpm -r clean && cargo clean",
+    "release": "pnpm test && pnpm -r publish"
   },
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {

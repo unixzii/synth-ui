@@ -5,3 +5,4 @@ dist
 packages/backend/pkg
 
 .DS_Store
+.vercel

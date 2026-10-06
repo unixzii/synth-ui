@@ -4,7 +4,26 @@
   "description": "Hosts synth-ui on a web page: a canvas, drawn by the Rust backend through WebGPU or WebGL2",
   "author": "Cyandev <unixzii@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unixzii/synth-ui.git",
+    "directory": "packages/backend"
+  },
+  "homepage": "https://github.com/unixzii/synth-ui#readme",
+  "bugs": "https://github.com/unixzii/synth-ui/issues",
+  "keywords": [
+    "ui",
+    "immediate-mode",
+    "pixel-art",
+    "retro",
+    "crt",
+    "webgpu",
+    "webgl",
+    "wasm",
+    "canvas"
+  ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "@synth-ui/source": "./src/index.ts",
@@ -21,11 +40,15 @@
     "!src/**/*.test.ts",
     "!pkg/.gitignore"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build:wasm": "node ../../scripts/build-wasm.mjs",
     "build": "node ../../scripts/build-wasm.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist pkg"
+    "clean": "rm -rf dist pkg",
+    "prepack": "pnpm clean && pnpm build"
   },
   "dependencies": {
     "@synth-ui/core": "workspace:^"

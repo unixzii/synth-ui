@@ -4,7 +4,23 @@
   "description": "Basic widgets and theme for synth-ui",
   "author": "Cyandev <unixzii@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unixzii/synth-ui.git",
+    "directory": "packages/widgets"
+  },
+  "homepage": "https://github.com/unixzii/synth-ui#readme",
+  "bugs": "https://github.com/unixzii/synth-ui/issues",
+  "keywords": [
+    "ui",
+    "immediate-mode",
+    "pixel-art",
+    "retro",
+    "widgets",
+    "gui"
+  ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "@synth-ui/source": "./src/index.ts",
@@ -19,10 +35,14 @@
     "src",
     "!src/**/*.test.ts"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm clean && pnpm build"
   },
   "dependencies": {
     "@synth-ui/core": "workspace:^"

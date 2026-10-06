@@ -7,6 +7,9 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    // Keeps the wasm-bindgen types (which need lib esnext.disposable) out of
+    // the public .d.ts: only ViewHost's @internal constructor names them.
+    "stripInternal": true,
     // Other @synth-ui packages come from their built dist/, not their sources.
     "customConditions": []
   },
