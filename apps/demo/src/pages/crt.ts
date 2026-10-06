@@ -4,7 +4,7 @@
 // long enough for burn-in.
 
 import type { Context } from '@synth-ui/core';
-import { DEFAULT_FX, type MaskType, type WebHost } from '@synth-ui/renderer/web';
+import { DEFAULT_FX, type MaskType, type ViewHost } from '@synth-ui/backend';
 import { button, card, checkbox, label, segmented, slider, useTheme } from '@synth-ui/widgets';
 import { say } from '../app';
 
@@ -28,7 +28,7 @@ interface Setting {
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-export function crtPage(host: WebHost): (ctx: Context) => void {
+export function crtPage(host: ViewHost): (ctx: Context) => void {
   const fx = host.fx;
   const d = DEFAULT_FX;
   const settings: Setting[][] = [
@@ -52,7 +52,7 @@ export function crtPage(host: WebHost): (ctx: Context) => void {
       text: (v: number) => `${v < 10 ? v.toFixed(1) : Math.round(v)} MS`,
     })),
     [
-      { name: 'BURN-IN', hint: 'WEAR PER HOUR AT FULL BRIGHTNESS', min: 0, max: 60, get: () => fx.burnIn, set: (v) => (fx.burnIn = v), reset: d.burnIn, text: (v) => `${v < 10 ? v.toFixed(1) : Math.round(v)}/H` },
+      { name: 'BURN-IN', hint: host.wears ? 'WEAR PER HOUR AT FULL BRIGHTNESS' : 'WEAR PER HOUR · THIS GPU CAN\'T SHOW IT', min: 0, max: 60, get: () => fx.burnIn, set: (v) => (fx.burnIn = v), reset: d.burnIn, text: (v) => `${v < 10 ? v.toFixed(1) : Math.round(v)}/H` },
       { name: 'ROOM LIGHT', hint: 'AMBIENT LIGHT ON THE FACEPLATE', min: 0, max: 0.03, get: () => fx.ambient, set: (v) => (fx.ambient = v), reset: d.ambient, text: (v) => (v * 1000).toFixed(1) },
       { name: 'VIGNETTE', hint: 'FALLING OFF TOWARDS THE CORNERS', min: 0, max: 1, get: () => fx.vignette, set: (v) => (fx.vignette = v), reset: d.vignette, text: pct },
     ],
@@ -84,10 +84,6 @@ export function crtPage(host: WebHost): (ctx: Context) => void {
           });
         });
         col.row({ gap: 6, h: 11 }, (row) => {
-          if (button(row, { label: 'FRESH TUBE', hint: 'FORGET THE BURN-IN' }).clicked) {
-            host.clearBurnIn();
-            say('A FRESH TUBE');
-          }
           if (button(row, { label: 'DEFAULTS', hint: 'EVERY SETTING BACK TO DEFAULT_FX' }).clicked) {
             Object.assign(fx, structuredClone(DEFAULT_FX));
             say('DEFAULTS');

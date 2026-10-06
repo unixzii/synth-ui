@@ -1,0 +1,25 @@
+[package]
+name = "synth-backend"
+description = "Platform-neutral half of synth-ui's backend: rasterizer, fonts, the CRT and the view host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = ["gpu"]
+# The wgpu CRT and the ViewHost that drives it. Off, what's left (raster,
+# fonts, screen, input, scheduling) builds and tests without a GPU stack.
+gpu = ["dep:wgpu", "dep:bytemuck"]
+
+[dependencies]
+bytemuck = { workspace = true, optional = true }
+log.workspace = true
+serde.workspace = true
+wgpu = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Checks the CRT's shaders, and that they translate for WebGL2, without a GPU.
+naga = { version = "30.0", features = ["wgsl-in", "glsl-out"] }
+serde_json = "1.0"

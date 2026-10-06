@@ -17,7 +17,6 @@ import type { FontMetrics, TextStyle } from './font.js';
 import { type Point, type Rect, type Size, inside, intersect, inset as insetRect } from './geometry.js';
 import { isTypingCombo, type CursorStyle, type KeyCombo, type Modifiers } from './input.js';
 import type { ColorMap, Palette } from './palette.js';
-import type { DrawCommand } from './scene.js';
 import type { AttributedText, TextLayout, TextLayoutOptions } from './text.js';
 import { ease, EASE } from './animation.js';
 import { resolveFilter, type FilterOptions } from './filter.js';
@@ -167,7 +166,7 @@ export class Context {
 
   // ================================================================ frame
 
-  /** Milliseconds, from the renderer's clock. */
+  /** Milliseconds, from the host's clock. */
   get time(): number {
     return this.ui.time;
   }
@@ -227,7 +226,7 @@ export class Context {
   clip<T>(r: Rect, fn: (ctx: Context) => T): T {
     const abs = this.abs(r);
     const clipRect = intersect(this.clipRect, abs);
-    const ctx = new Context(this.ui, `${this.key}/r${this.n.r++}`, { x: this.ox, y: this.oy, w: 0, h: 0 }, clipRect, this.ui.clips.push(clipRect) - 1, this.layer, this.env, {});
+    const ctx = new Context(this.ui, `${this.key}/r${this.n.r++}`, { x: this.ox, y: this.oy, w: 0, h: 0 }, clipRect, this.ui.addClip(clipRect), this.layer, this.env, {});
     ctx.bounds = { ...this.bounds };
     ctx.cursor = { ...this.cursor };
     return fn(ctx);
@@ -252,7 +251,7 @@ export class Context {
     let clipIndex = this.clipIndex;
     if (opts.clip) {
       clipRect = intersect(this.clipRect, abs);
-      clipIndex = this.ui.clips.push(clipRect) - 1;
+      clipIndex = this.ui.addClip(clipRect);
     }
     return new Context(this.ui, opts.key ?? `${this.key}/r${this.n.r++}`, abs, clipRect, clipIndex, this.layer, this.env, opts);
   }
@@ -568,12 +567,13 @@ export class Context {
 
   fillRect(r: Rect, color: number, opts: FillOptions = {}): void {
     const a = this.abs(r);
-    this.push({ op: 'fill', clip: this.clipIndex, ...a, color, pattern: opts.pattern ?? SOLID });
+    this.ui.backend.fill(this.layer, this.clipIndex, a.x, a.y, a.w, a.h, color, opts.pattern ?? SOLID);
   }
 
   /** A one-pixel outline just inside `r`. */
   strokeRect(r: Rect, color: number): void {
-    this.push({ op: 'stroke', clip: this.clipIndex, ...this.abs(r), color });
+    const a = this.abs(r);
+    this.ui.backend.stroke(this.layer, this.clipIndex, a.x, a.y, a.w, a.h, color);
   }
 
   hline(x: number, y: number, w: number, color: number, opts?: FillOptions): void {
@@ -586,33 +586,35 @@ export class Context {
 
   /** A line, both ends included. */
   line(x0: number, y0: number, x1: number, y1: number, color: number): void {
-    this.push({ op: 'line', clip: this.clipIndex, x0: this.ox + Math.round(x0), y0: this.oy + Math.round(y0), x1: this.ox + Math.round(x1), y1: this.oy + Math.round(y1), color });
+    this.ui.backend.line(this.layer, this.clipIndex, this.ox + Math.round(x0), this.oy + Math.round(y0), this.ox + Math.round(x1), this.oy + Math.round(y1), color);
   }
 
   circle(cx: number, cy: number, r: number, color: number): void {
-    this.push({ op: 'circle', clip: this.clipIndex, cx: this.ox + Math.round(cx), cy: this.oy + Math.round(cy), r: Math.round(r), color, fill: false });
+    this.ui.backend.circle(this.layer, this.clipIndex, this.ox + Math.round(cx), this.oy + Math.round(cy), Math.round(r), color, false);
   }
 
   fillCircle(cx: number, cy: number, r: number, color: number): void {
-    this.push({ op: 'circle', clip: this.clipIndex, cx: this.ox + Math.round(cx), cy: this.oy + Math.round(cy), r: Math.round(r), color, fill: true });
+    this.ui.backend.circle(this.layer, this.clipIndex, this.ox + Math.round(cx), this.oy + Math.round(cy), Math.round(r), color, true);
   }
 
   pixel(x: number, y: number, color: number): void {
-    this.push({ op: 'pixel', clip: this.clipIndex, x: this.ox + Math.round(x), y: this.oy + Math.round(y), color });
+    this.ui.backend.pixel(this.layer, this.clipIndex, this.ox + Math.round(x), this.oy + Math.round(y), color);
   }
 
   /** A 1-bit image in one colour, its top left at (x, y). */
   bitmap(image: Bitmap, x: number, y: number, color: number, opts: { scale?: number } = {}): void {
-    this.push({ op: 'bitmap', clip: this.clipIndex, image, x: this.ox + Math.round(x), y: this.oy + Math.round(y), color, scale: opts.scale ?? 1 });
+    this.ui.backend.bitmap(this.layer, this.clipIndex, image, this.ox + Math.round(x), this.oy + Math.round(y), color, opts.scale ?? 1);
   }
 
   /** A line of text, its top left at (x, y). Returns the x where the next text would follow on. */
   text(text: string, x: number, y: number, style: TextStyle): number {
-    const name = style.font ?? this.ui.fonts.defaultFont;
-    const font = this.ui.fonts.font(name);
+    const { backend } = this.ui;
+    const font = style.font ?? backend.defaultFont;
     const scale = style.scale ?? 1;
-    if (text) this.push({ op: 'text', clip: this.clipIndex, font: name, text, x: this.ox + Math.round(x), y: this.oy + Math.round(y), color: style.color, scale });
-    return Math.round(x) + (text ? font.width(text, scale) + font.spacing * scale : 0);
+    if (!text) return Math.round(x);
+    const width = backend.measureText(text, font, scale);
+    backend.text(this.layer, this.clipIndex, font, text, this.ox + Math.round(x), this.oy + Math.round(y), style.color, scale);
+    return Math.round(x) + width + backend.fontMetrics(font).spacing * scale;
   }
 
   /** A text layout, its box's top left at (x, y): backgrounds, then glyphs, then underlines. */
@@ -620,14 +622,15 @@ export class Context {
     const [ox, oy] = [Math.round(x), Math.round(y)];
     for (const r of layout.runs) if (r.background !== undefined) this.fillRect({ ...r.box, x: ox + r.box.x, y: oy + r.box.y }, r.background);
     for (const r of layout.runs) {
-      this.push({ op: 'text', clip: this.clipIndex, font: layout.font, text: r.text, x: this.ox + ox + r.rect.x, y: this.oy + oy + r.rect.y, color: r.color, scale: layout.scale });
+      this.ui.backend.text(this.layer, this.clipIndex, layout.font, r.text, this.ox + ox + r.rect.x, this.oy + oy + r.rect.y, r.color, layout.scale);
     }
     for (const r of layout.runs) if (r.underline !== undefined && r.rect.w > 0) this.hline(ox + r.rect.x, oy + r.rect.y + r.rect.h + 1, r.rect.w, r.underline);
   }
 
   /** Rework what's drawn in `r` through a colour map: washes, fades, tints. */
   remap(r: Rect, map: ColorMap, opts: FillOptions = {}): void {
-    this.push({ op: 'remap', clip: this.clipIndex, ...this.abs(r), map, pattern: opts.pattern ?? SOLID });
+    const a = this.abs(r);
+    this.ui.backend.remap(this.layer, this.clipIndex, a.x, a.y, a.w, a.h, map, opts.pattern ?? SOLID);
   }
 
   /**
@@ -637,12 +640,14 @@ export class Context {
    */
   filter(r: Rect, opts: FilterOptions): void {
     const a = this.abs(r);
-    this.push({ op: 'filter', clip: this.clipIndex, ...a, ...resolveFilter(a, opts, this.ui.palette) });
+    const { field, maps, blend } = resolveFilter(a, opts, this.ui.palette);
+    this.ui.backend.filter(this.layer, this.clipIndex, a.x, a.y, a.w, a.h, field, maps, blend);
   }
 
   /** Pixelate what's drawn in `r` into `size`-pixel blocks. */
   mosaic(r: Rect, size: number): void {
-    this.push({ op: 'mosaic', clip: this.clipIndex, ...this.abs(r), size: Math.floor(size) });
+    const a = this.abs(r);
+    this.ui.backend.mosaic(this.layer, this.clipIndex, a.x, a.y, a.w, a.h, Math.floor(size));
   }
 
   // ---------------------------------------------------------------- text
@@ -671,9 +676,5 @@ export class Context {
 
   private abs(r: Rect): Rect {
     return { x: this.ox + Math.round(r.x), y: this.oy + Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) };
-  }
-
-  private push(cmd: DrawCommand) {
-    (this.ui.layers[this.layer] ??= []).push(cmd);
   }
 }

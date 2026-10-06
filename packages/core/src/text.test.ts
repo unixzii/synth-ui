@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { basicTextLayout, type Font, type FontSource } from './backend.js';
+import { SceneRecorder, basicTextLayout } from './backend.js';
 import type { Context } from './context.js';
 import { Palette } from './palette.js';
 import type { AttributedText, TextLayoutOptions } from './text.js';
 import { UI } from './ui.js';
 
 // Glyphs 3 wide and 5 tall, a pixel apart: each character advances 4.
-const mono: Font = { height: 5, spacing: 1, width: (t, s = 1) => Math.max(0, t.length * 4 - 1) * s };
-const lay = (text: AttributedText, opts: TextLayoutOptions = {}) => basicTextLayout(mono, text, { ...opts, font: 'mono' });
+const metrics = { height: 5, spacing: 1 };
+const width = (t: string, s: number) => Math.max(0, t.length * 4 - 1) * s;
+const lay = (text: AttributedText, opts: TextLayoutOptions = {}) => basicTextLayout(metrics, width, text, { ...opts, font: 'mono' });
 const lines = (text: AttributedText, opts: TextLayoutOptions = {}) => {
   const l = lay(text, opts);
   return l.lines.map((ln) => l.text.slice(ln.start, ln.end));
@@ -84,13 +85,16 @@ describe('basicTextLayout', () => {
 
 describe('drawing a layout', () => {
   it('draws backgrounds, then glyphs, then underlines, from the box origin', () => {
-    const fonts: FontSource = { defaultFont: 'mono', has: () => true, font: () => mono, layoutText: (t, o) => basicTextLayout(mono, t, o) };
-    const ui = new UI({ palette: new Palette([['bg', '#000000']]), fonts });
+    const backend = new SceneRecorder({ defaultFont: 'mono', hasFont: () => true, fontMetrics: () => metrics, measureText: (t, _f, s) => width(t, s) });
+    const palette = new Palette([['bg', '#000000']]);
+    const ui = new UI({ palette, backend });
+    backend.reset(100, 100, palette);
     const paint = (ctx: Context) => {
       const l = ctx.layoutText({ text: 'AB', attrs: [{ start: 1, end: 2, background: 5, underline: 6 }] }, { color: 7 });
       ctx.drawText(l, 10, 20);
     };
-    const ops = ui.frame({ width: 100, height: 100, time: 0, events: [] }, paint).scene.commands;
+    ui.frame({ width: 100, height: 100, time: 0, events: [] }, paint);
+    const ops = backend.scene.commands;
     expect(ops.map((c) => c.op)).toEqual(['fill', 'text', 'text', 'fill']);
     expect(ops[0]).toMatchObject({ x: 13, y: 20, w: 5, h: 5, color: 5 });
     expect(ops[2]).toMatchObject({ font: 'mono', text: 'B', x: 14, y: 20, color: 7 });

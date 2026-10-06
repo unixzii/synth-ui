@@ -1,8 +1,8 @@
-// The UI: what lives between frames. A renderer calls `frame()` once per
-// frame with the input that arrived since the last one; the paint function
-// draws the whole UI into a Context and asks it what happened; out comes a
-// Scene to draw, plus what the renderer should do about the cursor, text
-// input and the clipboard.
+// The UI: what lives between frames. A host calls `frame()` once per frame
+// with the input that arrived since the last one; the paint function draws
+// the whole UI into a Context, which hands the drawing to the host's
+// backend as it goes, and asks it what happened; out comes what the host
+// should do about the cursor, text input and the clipboard.
 //
 // Input is routed with the previous frame's layout. Every `interaction()`
 // registers its rectangle; at the start of the next frame, presses, hover
@@ -12,17 +12,16 @@
 
 import { type Point, type Rect, inside } from './geometry.js';
 import { Context } from './context.js';
-import type { FontSource } from './backend.js';
+import type { Backend } from './backend.js';
 import type { FontMetrics, TextStyle } from './font.js';
 import { type CursorStyle, type InputEvent, type Modifiers, NO_MODIFIERS, canonicalCombo, comboOf } from './input.js';
 import type { Palette } from './palette.js';
-import type { DrawCommand, Scene } from './scene.js';
 import type { AttributedText, TextLayout, TextLayoutOptions } from './text.js';
 
 export interface UIOptions {
   palette: Palette;
-  /** The renderer's fonts. */
-  fonts: FontSource;
+  /** The host's fonts and drawing. */
+  backend: Backend;
   /** Index each frame is cleared to. */
   background?: number;
   /** Mod is Cmd, as on a Mac, rather than Ctrl. */
@@ -47,7 +46,6 @@ export interface TextInputState {
 }
 
 export interface FrameOutput {
-  scene: Scene;
   cursor: CursorStyle;
   /** The hint of whatever the pointer is over. */
   hint: string;
@@ -112,7 +110,7 @@ const DOUBLE_CLICK_DIST = 4;
 
 export class UI {
   palette: Palette;
-  fonts: FontSource;
+  readonly backend: Backend;
   background: number;
   readonly mac: boolean;
 
@@ -145,8 +143,7 @@ export class UI {
   // ------------------------------------------------ this frame's output
   /** @internal */ hits: Hit[] = [];
   /** @internal */ seen = new Set<string>();
-  /** @internal */ layers: DrawCommand[][] = [];
-  /** @internal */ clips: Rect[] = [];
+  /** @internal This frame's clips, absolute; `clips[0]` is the whole frame. */ clips: Rect[] = [];
   /** @internal */ cursor: CursorStyle = 'default';
   /** @internal */ hint = '';
   /** @internal */ textInput: TextInputState | null = null;
@@ -157,7 +154,7 @@ export class UI {
 
   constructor(opts: UIOptions) {
     this.palette = opts.palette;
-    this.fonts = opts.fonts;
+    this.backend = opts.backend;
     this.background = opts.background ?? 0;
     this.mac = opts.mac ?? false;
   }
@@ -172,7 +169,6 @@ export class UI {
 
     this.hits = [];
     this.seen = new Set();
-    this.layers = [[]];
     this.clips = [{ x: 0, y: 0, w: this.width, h: this.height }];
     this.cursor = 'default';
     this.hint = '';
@@ -191,23 +187,22 @@ export class UI {
 
   /** A font is registered as `name`. */
   hasFont(name: string): boolean {
-    return this.fonts.has(name);
+    return this.backend.hasFont(name);
   }
 
   /** What the font named (or the default font) measures, at scale 1. */
   fontMetrics(font?: string): FontMetrics {
-    const f = this.fonts.font(font ?? this.fonts.defaultFont);
-    return { height: f.height, spacing: f.spacing };
+    return this.backend.fontMetrics(font ?? this.backend.defaultFont);
   }
 
   /** Width of `text` in pixels, without trailing spacing. */
   measureText(text: string, style: Omit<TextStyle, 'color'> = {}): number {
-    return this.fonts.font(style.font ?? this.fonts.defaultFont).width(text, style.scale ?? 1);
+    return this.backend.measureText(text, style.font ?? this.backend.defaultFont, style.scale ?? 1);
   }
 
   /** Set `text` in a box: lines, runs to draw with `Context.drawText()`, and where each character is. */
   layoutText(text: AttributedText, opts: TextLayoutOptions = {}): TextLayout {
-    return this.fonts.layoutText(text, { ...opts, font: opts.font ?? this.fonts.defaultFont });
+    return this.backend.layoutText(text, { ...opts, font: opts.font ?? this.backend.defaultFont });
   }
 
   // ------------------------------------------------ input routing
@@ -368,6 +363,13 @@ export class UI {
     (globalThis as { console?: { warn(...args: unknown[]): void } }).console?.warn(message);
   }
 
+  /** @internal A clip for this frame, absolute: its id, also known to the backend. */
+  addClip(rect: Rect): number {
+    const id = this.clips.push(rect) - 1;
+    this.backend.clip(id, rect);
+    return id;
+  }
+
   /** @internal */
   canonical(combo: string): string {
     return canonicalCombo(combo, this.mac);
@@ -382,16 +384,7 @@ export class UI {
     this.prevHits = this.hits;
     for (const [key, s] of this.store) if (s.frame < this.frameNo) this.store.delete(key);
 
-    const scene: Scene = {
-      width: this.width,
-      height: this.height,
-      palette: this.palette,
-      background: this.background,
-      clips: this.clips,
-      commands: this.layers.length === 1 ? this.layers[0] : this.layers.flatMap((l) => l ?? []),
-    };
     return {
-      scene,
       cursor: this.cursor,
       hint: this.hint,
       textInput: this.textInput,

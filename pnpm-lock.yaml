@@ -17,12 +17,12 @@ importers:
 
   apps/demo:
     dependencies:
+      '@synth-ui/backend':
+        specifier: workspace:^
+        version: link:../../packages/backend
       '@synth-ui/core':
         specifier: workspace:^
         version: link:../../packages/core
-      '@synth-ui/renderer':
-        specifier: workspace:^
-        version: link:../../packages/renderer
       '@synth-ui/widgets':
         specifier: workspace:^
         version: link:../../packages/widgets
@@ -31,13 +31,13 @@ importers:
         specifier: ^8.3.0
         version: 8.3.1
 
-  packages/core: {}
-
-  packages/renderer:
+  packages/backend:
     dependencies:
       '@synth-ui/core':
         specifier: workspace:^
         version: link:../core
+
+  packages/core: {}
 
   packages/widgets:
     dependencies:

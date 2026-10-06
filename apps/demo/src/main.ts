@@ -2,7 +2,7 @@
 // top bar (F1–F5), with a status line at the bottom and tooltips over all.
 
 import { Palette, type Context } from '@synth-ui/core';
-import { createWebHost } from '@synth-ui/renderer/web';
+import { createViewHost } from '@synth-ui/backend';
 import { ICONS, THEME_COLORS, THEME_FONTS, iconButton, label, statusLine, tabs, tooltip, useTheme } from '@synth-ui/widgets';
 import { app } from './app';
 import { controlsPage } from './pages/controls';
@@ -12,7 +12,10 @@ import { listsPage } from './pages/lists';
 import { textPage } from './pages/text';
 
 const palette = new Palette(THEME_COLORS);
-const host = createWebHost(document.getElementById('app')!, {
+const canvas = document.createElement('canvas');
+document.getElementById('app')!.append(canvas);
+// Frames start once the host is ready, after this module has run to the end.
+const host = await createViewHost(canvas, paint, {
   palette,
   fonts: THEME_FONTS,
   resolution: { width: 640, height: 400 },
@@ -29,7 +32,7 @@ const PAGES = [
 ];
 let page = 0;
 
-host.run((ctx) => {
+function paint(ctx: Context) {
   const { colors: c } = useTheme(ctx);
   ctx.fillRect(ctx.bounds, c.bg);
   PAGES.forEach((p, i) => {
@@ -46,7 +49,7 @@ host.run((ctx) => {
   ctx.hline(status.x, status.y, status.w, c.line);
   statusLine(ctx, { text: ctx.hint, message: app.message }, { x: status.x + 10, y: status.y + 2, w: status.w - 20, h: 11 });
   tooltip(ctx);
-});
+}
 
 function topBar(ctx: Context) {
   const { colors: c } = useTheme(ctx);
@@ -55,10 +58,8 @@ function topBar(ctx: Context) {
   ctx.hline(r.x, r.y + r.h - 1, r.w, c.line);
   ctx.allocate(r, (bar) => {
     bar.inset(8, 2, 6, 3);
-    if (host.effects) {
-      const crt = host.fx.enabled;
-      if (iconButton(bar, { icon: ICONS.crt, on: crt, hint: crt ? 'CRT FX: ON' : 'CRT FX: OFF' }, bar.cutRight(15)).clicked) host.fx.enabled = !crt;
-    }
+    const crt = host.fx.enabled;
+    if (iconButton(bar, { icon: ICONS.crt, on: crt, hint: crt ? 'CRT FX: ON' : 'CRT FX: OFF' }, bar.cutRight(15)).clicked) host.fx.enabled = !crt;
     bar.row({ gap: 10, align: 'center' }, (row) => {
       label(row, 'SYNTH-UI', { color: c.accent });
       const picked = tabs(row, { tabs: PAGES.map((p) => ({ label: p.label, shortcut: p.shortcut, hint: `${p.label} (${p.shortcut})` })), selected: page });

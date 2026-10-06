@@ -1,7 +1,7 @@
 // Fonts, as the app sees them: faces described as data, handed to the host
 // in a named set the way colours are handed over in a palette, and named
-// wherever text is drawn or measured. The renderer turns each face into
-// something it can measure and draw (see `Font` in ./backend), so how
+// wherever text is drawn or measured. The backend turns each face into
+// something it can measure and draw (see `Backend` in ./backend), so how
 // glyphs are stored, cached or accelerated stays its own business.
 
 /** A bitmap face: every glyph a 1-bit image, as wide as its rows. */
@@ -19,7 +19,7 @@ export interface BitmapFace {
   caps?: boolean;
 }
 
-/** A face a renderer can be handed. Renderers reject kinds they can't draw. */
+/** A face a backend can be handed. Backends reject kinds they can't draw. */
 export type FontFace = BitmapFace;
 
 /** Faces by name, for a host to register. */

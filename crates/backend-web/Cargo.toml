@@ -1,0 +1,57 @@
+[package]
+name = "synth-backend-web"
+description = "synth-ui's web host: a ViewHost on a canvas, driven by the browser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+synth-backend = { workspace = true, features = ["gpu"] }
+console_error_panic_hook.workspace = true
+js-sys.workspace = true
+log.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+wgpu = { workspace = true, features = ["webgl"] }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  "AddEventListenerOptions",
+  "ClipboardEvent",
+  "CompositionEvent",
+  "CssStyleDeclaration",
+  "DataTransfer",
+  "Document",
+  "DomRect",
+  "Element",
+  "Event",
+  "EventTarget",
+  "FocusOptions",
+  "HtmlCanvasElement",
+  "HtmlElement",
+  "HtmlInputElement",
+  "HtmlSelectElement",
+  "HtmlTextAreaElement",
+  "InputEvent",
+  "KeyboardEvent",
+  "MouseEvent",
+  "Navigator",
+  "Node",
+  "PointerEvent",
+  "ResizeObserver",
+  "ResizeObserverBoxOptions",
+  "ResizeObserverEntry",
+  "ResizeObserverOptions",
+  "ResizeObserverSize",
+  "WheelEvent",
+  "Window",
+  "console",
+]

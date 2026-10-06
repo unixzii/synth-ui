@@ -1,4 +1,4 @@
-// What a renderer tells the core happened, in platform-neutral terms.
+// What a host tells the core happened, in platform-neutral terms.
 // Positions are in virtual pixels. Key names follow the W3C UI Events `key`
 // and `code` values ('a', 'Enter', 'ArrowLeft', 'F1'; 'KeyZ', 'Digit2'),
 // which native platforms can map to as easily as the web reports them.

@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@synth-ui/core": "workspace:^",
-    "@synth-ui/renderer": "workspace:^",
+    "@synth-ui/backend": "workspace:^",
     "@synth-ui/widgets": "workspace:^"
   },
   "devDependencies": {

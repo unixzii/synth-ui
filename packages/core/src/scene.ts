@@ -1,8 +1,10 @@
-// A frame's drawing, as a flat list of commands for a renderer to replay in
-// order. Coordinates are absolute whole pixels; colours are palette indices.
-// Each command names its clip rectangle by index into `clips`, so replaying
-// needs no stack. `remap`, `mosaic` and `filter` rework what's already been
-// drawn under them, so order matters and is kept, layer by layer.
+// A frame's drawing, as a flat list of commands to replay in order: what
+// each of a `Backend`'s drawing operations means, and what `SceneRecorder`
+// records them as. Coordinates are absolute whole pixels; colours are
+// palette indices. Each command names its clip rectangle by index into
+// `clips`, so replaying needs no stack. `remap`, `mosaic` and `filter` rework
+// what's already been drawn under them, so order matters and is kept, layer
+// by layer.
 
 import type { Bitmap, Pattern } from './bitmap.js';
 import type { StrengthField } from './filter.js';

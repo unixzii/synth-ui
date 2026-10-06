@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // No DOM: the core runs anywhere a renderer does.
+    // No DOM: the core runs anywhere a backend does.
     "lib": ["ES2022"]
   },
   "include": ["src"]

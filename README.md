@@ -16,14 +16,17 @@ for example, draws its whole interface with it.
 
 ```
 packages/
-  core/       the immediate-mode UI: regions, layout, input, state, animation, palettes
-  renderer/   turns what a frame drew into pixels, and puts them on a web page
-  widgets/    the theme, icons and controls
+  core/          the immediate-mode UI: regions, layout, input, state, animation, palettes
+  backend/       hosts a UI on a web page, drawn by the Rust backend (WebAssembly)
+  widgets/       the theme, icons and controls
+crates/
+  backend/       the backend, platform-neutral: rasterizer, fonts, the CRT, the view host
+  backend-web/   the web host: a canvas, the browser's events and frame clock
 apps/
-  demo/       a playground with a page per group of controls
+  demo/          a playground with a page per group of controls
 ```
 
-Each package is published as `@synth-ui/<name>`; see
+Each package is published as `@synth-ui/<name>`, each crate as `synth-<name>`; see
 [Packages and platforms](#packages-and-platforms) for how they fit together.
 
 ## Features
@@ -34,9 +37,9 @@ Each package is published as `@synth-ui/<name>`; see
   palette indices, and fades, tints and shadows are colour maps with ordered
   dither. Filters (ramps, vignettes), mosaic and remapping work on what's
   already drawn.
-- **A CRT look.** On the web, WebGL simulates the tube: scanlines, a
-  phosphor mask, bloom and halation where it's bright, phosphor persistence,
-  even burn-in. Without WebGL2 it falls back to plain Canvas 2D.
+- **A CRT look.** The GPU simulates the tube, through wgpu (WebGPU on the
+  web, or WebGL2 where there's none): scanlines, a phosphor mask, bloom and
+  halation where it's bright, phosphor persistence, even burn-in.
 - **Layout without a layout engine.** Rows, columns, cuts and insets carve
   up the screen; any region can clip, and scroll views measure their content.
 - **Complete input.** Layers and overlays for menus and modals, focus and
@@ -44,8 +47,9 @@ Each package is published as `@synth-ui/<name>`; see
   text editing with selection, undo, the clipboard and IME.
 - **State and animation built in.** Per-control state that lives while it's
   drawn, and values that glide over time rather than per frame.
-- **Portable.** The core, the rasterizer, the fonts and the controls don't
-  touch the DOM; only a small host does.
+- **Portable.** The core and the controls don't touch the DOM, and the
+  backend is Rust: rasterizer, fonts and CRT are platform-neutral, and only
+  a small host per platform isn't.
 
 ## Controls
 
@@ -64,15 +68,15 @@ Each control's doc comment and props describe how to use it.
 
 ```ts
 import { Palette } from '@synth-ui/core';
-import { createWebHost } from '@synth-ui/renderer/web';
+import { createViewHost } from '@synth-ui/backend';
 import { THEME_COLORS, THEME_FONTS, button, useTheme } from '@synth-ui/widgets';
 
 const palette = new Palette([...THEME_COLORS /*, the app's own colours */]);
 const fonts = { ...THEME_FONTS /*, the app's own faces */ };
-const host = createWebHost(document.getElementById('app')!, { palette, fonts, resolution: { width: 480, height: 300 } });
+const canvas = document.querySelector('canvas')!;
 let count = 0;
 
-host.run((ctx) => {
+const host = await createViewHost(canvas, (ctx) => {
   const { colors: c } = useTheme(ctx);
   ctx.fillRect(ctx.bounds, c.bg);
   ctx.inset(10);
@@ -82,11 +86,16 @@ host.run((ctx) => {
     row.cursor.x += 20;
     if (button(row, { label: '+' }).clicked) count++;
   });
-});
+}, { palette, fonts, resolution: { width: 480, height: 300 } });
 ```
 
 Every frame draws the whole UI and asks each widget, as it's drawn, what
 happened to it. There are no widget objects: the draw code is the UI.
+
+The host decides when a frame is due (every display refresh, or with
+`redraw: 'auto'` only when something changed) and calls the paint function
+then. `host.fx` is the CRT, changeable at any time; `host.palette` can be
+swapped; `stop()`, `start()` and `destroy()` control the host itself.
 
 ### Regions and layout
 
@@ -221,7 +230,7 @@ region's clip.
 Fonts are named, like colours. The app gives the host a set of faces
 (`fonts`, e.g. the widgets' `THEME_FONTS`: `text`, the 5×7, and `small`),
 with `defaultFont` naming the one used when none is (default: the first).
-Faces are data (`BitmapFace`: glyph rows, spacing, aliases); the renderer
+Faces are data (`BitmapFace`: glyph rows, spacing, aliases); the backend
 turns them into fonts it measures and draws, and nothing outside it holds
 one. Text is styled by font name, and measured through the context:
 `measureText(text, { font, scale })`, `fontMetrics(font)` (line height and
@@ -248,26 +257,43 @@ where every caret position is: `position(index)`, `indexAt(point)`,
 
 | Package | Platform Dependency | Contents |
 | --- | --- | --- |
-| `@synth-ui/core` | none | `UI` and `Context`: regions, keys, state, animation, layout, input routing, focus, shortcuts; the `Scene` it produces; `Palette`, bitmaps and dither; font faces and text layout types |
-| `@synth-ui/core/backend` | none | What a renderer implements for the core: `Font`, `FontSource`, and `basicTextLayout`, a text layout built on a font's measurements |
-| `@synth-ui/renderer` | none | Platform-neutral: `rasterize` (Scene → 8-bit indexed `Surface`), `BitmapFont` and the `FontRegistry` made from an app's faces |
-| `@synth-ui/renderer/web` | DOM | `createWebHost`: canvas, the WebGL CRT (Canvas 2D fallback), DOM events → core events, the text agent, the frame loop |
+| `@synth-ui/core` | none | `UI` and `Context`: regions, keys, state, animation, layout, input routing, focus, shortcuts; `Palette`, bitmaps and dither; font faces and text layout types; `DrawCommand` and `Scene`, what each drawing operation means |
+| `@synth-ui/core/backend` | none | `Backend`, the one thing the core depends on: the host's fonts (measuring, layout) and the drawing operations a `Context` calls as it paints. Also `basicTextLayout`, and `SceneRecorder`, a backend that records frames (for tests) |
+| `@synth-ui/backend` | DOM | `createViewHost`: a view on a canvas, run by the Rust backend compiled to WebAssembly; inside, core's `Backend` implemented on the backend's exports |
 | `@synth-ui/widgets` | none | The theme (`THEME_COLORS`, `THEME_FONTS`), the faces, icons, and widgets |
+| `synth-backend` (crate) | none | The backend: `DrawList` (a frame's drawing and the fonts, as the host exposes them), the rasterizer (drawing → 8-bit palette indices), bitmap fonts, the CRT in wgpu, and `ViewHost`, which decides when frames are due, runs the `Painter` and presents what it drew |
+| `synth-backend-web` (crate) | DOM | The web host: the canvas surface, DOM events → input events, the text agent, the frame clock, and the exports `@synth-ui/backend` builds on |
 
-Porting to another platform means writing a new host next to `web/` that
-feeds the core the same events and presents the rasterized surface; the
-core, the rasterizer, the fonts and the widgets come along unchanged.
+A `ViewHost` is made from a wgpu surface, a `Painter` (what draws each
+frame: on the web, the JavaScript paint callback) and a `Platform` (where
+the cursor and the text-input caret go). Porting to another platform means
+a new crate next to `crates/backend-web` that supplies those three, ticks
+the host on each display refresh (`on_vsync`), and feeds it input and size
+changes; the rasterizer, the fonts and the CRT come along unchanged.
 
 ## Development
+
+Besides Node and pnpm, the backend needs Rust with the WebAssembly target,
+and `wasm-bindgen-cli` at exactly the version of the `wasm-bindgen` crate in
+`Cargo.toml`:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129
+```
 
 ```bash
 pnpm install
 pnpm dev          # the playground (apps/demo): http://localhost:5173
-pnpm test         # the core, the rasterizer and the widgets
+pnpm test         # the core, the widgets and the backend (vitest, then cargo test)
 pnpm typecheck
-pnpm build        # each package's dist/: ES modules, .d.ts, source maps
+pnpm build        # each package's dist/: ES modules, .d.ts, source maps; the wasm in packages/backend/pkg
 pnpm build:demo
+pnpm build:wasm   # just the wasm (--dev for an unoptimized build)
 ```
+
+`pnpm dev`, `typecheck` and the builds build the wasm first, into
+`packages/backend/pkg/` (not checked in).
 
 The repository is a pnpm workspace. Inside it, the packages and the playground resolve `@synth-ui/*` to each
 other's sources through the `@synth-ui/source` export condition, so nothing

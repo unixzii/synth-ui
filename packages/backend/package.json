@@ -1,7 +1,7 @@
 {
-  "name": "@synth-ui/renderer",
+  "name": "@synth-ui/backend",
   "version": "0.1.0",
-  "description": "Draws synth-ui scenes as indexed pixels",
+  "description": "Hosts synth-ui on a web page: a canvas, drawn by the Rust backend through WebGPU or WebGL2",
   "author": "Cyandev <unixzii@gmail.com>",
   "license": "MIT",
   "type": "module",
@@ -10,24 +10,22 @@
       "@synth-ui/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./web": {
-      "@synth-ui/source": "./src/web/index.ts",
-      "types": "./dist/web/index.d.ts",
-      "default": "./dist/web/index.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "pkg",
     "src",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!pkg/.gitignore"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build:wasm": "node ../../scripts/build-wasm.mjs",
+    "build": "node ../../scripts/build-wasm.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist pkg"
   },
   "dependencies": {
     "@synth-ui/core": "workspace:^"

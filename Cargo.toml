@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Cyandev <unixzii@gmail.com>"]
+repository = "https://github.com/unixzii/synth-ui"
+
+[workspace.dependencies]
+synth-backend = { path = "crates/backend", default-features = false }
+bytemuck = { version = "1.25", features = ["derive"] }
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+wgpu = "30.0"
+# wasm-bindgen-cli must be this exact version too (see scripts/build-wasm.mjs).
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1

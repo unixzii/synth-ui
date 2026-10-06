@@ -1,5 +1,5 @@
 import { NO_MODIFIERS, Palette, UI, bitmap, type Context, type InputEvent, type Modifiers } from '@synth-ui/core';
-import { basicTextLayout, type Font, type FontSource } from '@synth-ui/core/backend';
+import { SceneRecorder, type BackendFonts } from '@synth-ui/core/backend';
 import { describe, expect, it } from 'vitest';
 import { button } from './button.js';
 import { knob, slider } from './knob.js';
@@ -11,15 +11,23 @@ import { History, erase, insert, moveTo, wordAt, wordLeft, wordRight, type Edit 
 import { textField } from './textfield.js';
 import { THEME_COLORS, THEME_FONTS } from './theme.js';
 
-const mono: Font = { height: 5, spacing: 1, width: (t, s = 1) => Math.max(0, t.length * 4 - 1) * s };
-// Every theme font measures as `mono`.
-const fonts: FontSource = { defaultFont: 'text', has: (name) => name in THEME_FONTS, font: () => mono, layoutText: (text, opts) => basicTextLayout(mono, text, opts) };
+// Every theme font measures as a 4-pixel monospaced face.
+const fonts: BackendFonts = {
+  defaultFont: 'text',
+  hasFont: (name) => name in THEME_FONTS,
+  fontMetrics: () => ({ height: 5, spacing: 1 }),
+  measureText: (t, _font, s) => Math.max(0, t.length * 4 - 1) * s,
+};
 const palette = new Palette(THEME_COLORS);
 
 function harness(width = 200, height = 150) {
-  const ui = new UI({ palette, fonts });
+  const backend = new SceneRecorder(fonts);
+  const ui = new UI({ palette, backend });
   let time = 0;
-  const frame = (paint: (ctx: Context) => void, events: InputEvent[] = []) => ui.frame({ width, height, time: (time += 10), events }, paint);
+  const frame = (paint: (ctx: Context) => void, events: InputEvent[] = []) => {
+    backend.reset(width, height, palette);
+    return { ...ui.frame({ width, height, time: (time += 10), events }, paint), scene: backend.scene };
+  };
   /** Frames until animations settle. */
   const settle = (paint: (ctx: Context) => void) => {
     for (let i = 0; i < 300; i++) if (!frame(paint).animating) return;

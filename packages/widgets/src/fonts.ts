@@ -1,6 +1,6 @@
 // The Synthez faces, as data: a 5×7 monospaced face for text and a small
 // proportional one for labels. The theme hands them to the host by name
-// (see THEME_FONTS); the renderer draws them.
+// (see THEME_FONTS); the backend draws them.
 
 import type { BitmapFace } from '@synth-ui/core';
 

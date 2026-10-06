@@ -3,11 +3,11 @@
 // Positions are UTF-16 indices into the text, as `String.slice` takes them;
 // a caret position is the gap before that character.
 //
-// The renderer lays text out, since the fonts are its own (see
-// `FontSource`); `basicTextLayout` is a layout any renderer can use, built
-// on nothing but its fonts' measurements.
+// The backend lays text out, since the fonts are its own (see `Backend`);
+// `basicTextLayout` is a layout any backend can use, built on nothing but
+// its fonts' measurements.
 
-import type { Font } from './backend.js';
+import type { FontMetrics } from './font.js';
 import type { Point, Rect } from './geometry.js';
 
 export interface TextAttrs {
@@ -98,9 +98,12 @@ export interface TextLayout {
   indexAt(p: Point): number;
 }
 
-/** Lay `text` out in `font`: a layout for renderers whose fonts only measure. */
-export function basicTextLayout(font: Font, text: AttributedText, opts: TextLayoutOptions & { font: string }): TextLayout {
-  return new BasicTextLayout(font, text, opts);
+/** Width of some text at an integer scale, without trailing spacing. */
+export type MeasureText = (text: string, scale: number) => number;
+
+/** Lay `text` out in a font with these metrics, measured by `measure`: a layout for backends whose fonts only measure. */
+export function basicTextLayout(metrics: FontMetrics, measure: MeasureText, text: AttributedText, opts: TextLayoutOptions & { font: string }): TextLayout {
+  return new BasicTextLayout(metrics, measure, text, opts);
 }
 
 /** The index after the character at `i`, keeping surrogate pairs whole. */
@@ -118,7 +121,8 @@ class BasicTextLayout implements TextLayout {
   private readonly pitch: number;
 
   constructor(
-    private readonly face: Font,
+    face: FontMetrics,
+    private readonly measure: MeasureText,
     input: AttributedText,
     opts: TextLayoutOptions & { font: string },
   ) {
@@ -177,7 +181,7 @@ class BasicTextLayout implements TextLayout {
     let left = Infinity;
     let right = -Infinity;
     spans.forEach(([start, end], row) => {
-      const w = end > start ? face.width(text.slice(start, end), scale) : 0;
+      const w = end > start ? measure(text.slice(start, end), scale) : 0;
       const x = !bounded || opts.align === undefined || opts.align === 'left' ? 0 : opts.align === 'center' ? Math.floor((width - w) / 2) : width - w;
       this.lines.push({ start, end, rect: { x, y: top + row * this.pitch, w, h } });
       left = Math.min(left, x);
@@ -246,7 +250,7 @@ class BasicTextLayout implements TextLayout {
 
   /** Pixels from the start of `line` to where the glyph at `i` starts. */
   private pen(line: TextLine, i: number): number {
-    return i > line.start ? this.face.width(this.text.slice(line.start, i), this.scale) + this.spacing : 0;
+    return i > line.start ? this.measure(this.text.slice(line.start, i), this.scale) + this.spacing : 0;
   }
 
   /** The end of the longest stretch from `start`, up to `end`, that fits in `width`. */
@@ -254,7 +258,7 @@ class BasicTextLayout implements TextLayout {
     let e = start;
     while (e < end) {
       const n = after(this.text, e);
-      if (this.face.width(this.text.slice(start, n), this.scale) > width) break;
+      if (this.measure(this.text.slice(start, n), this.scale) > width) break;
       e = n;
     }
     return e;

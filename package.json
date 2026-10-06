@@ -10,12 +10,13 @@
   },
   "description": "An immediate-mode pixel UI library.",
   "scripts": {
-    "dev": "pnpm --filter synth-ui-demo dev",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "dev": "node scripts/build-wasm.mjs && pnpm --filter synth-ui-demo dev",
     "build": "pnpm --filter './packages/*' build",
-    "build:demo": "pnpm --filter synth-ui-demo build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "vitest run",
-    "clean": "pnpm -r clean"
+    "build:demo": "node scripts/build-wasm.mjs && pnpm --filter synth-ui-demo build",
+    "typecheck": "node scripts/build-wasm.mjs && pnpm -r typecheck",
+    "test": "vitest run && cargo test -p synth-backend",
+    "clean": "pnpm -r clean && cargo clean"
   },
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
