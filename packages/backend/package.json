@@ -45,7 +45,7 @@
   },
   "scripts": {
     "build:wasm": "node ../../scripts/build-wasm.mjs",
-    "build": "node ../../scripts/build-wasm.mjs && tsc -p tsconfig.build.json",
+    "build": "node ../../scripts/build-wasm.mjs --opt && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "clean": "rm -rf dist pkg",
     "prepack": "pnpm clean && pnpm build"

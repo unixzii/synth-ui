@@ -303,7 +303,9 @@ pnpm build:wasm   # just the wasm (--dev for an unoptimized build)
 ```
 
 `pnpm dev`, `typecheck` and the builds build the wasm first, into
-`packages/backend/pkg/` (not checked in).
+`packages/backend/pkg/` (not checked in). `pnpm build` and `build:demo`, which
+make what ships, also put it through `wasm-opt -Oz` (binaryen, installed from
+npm); that takes about half a minute, so `dev` and `typecheck` skip it.
 
 `pnpm release` runs the tests and publishes every package whose version
 isn't on npm yet; each package cleans and builds itself before it's packed.

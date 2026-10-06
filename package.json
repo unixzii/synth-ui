@@ -13,7 +13,7 @@
     "build:wasm": "node scripts/build-wasm.mjs",
     "dev": "node scripts/build-wasm.mjs && pnpm --filter synth-ui-demo dev",
     "build": "pnpm --filter './packages/*' build",
-    "build:demo": "node scripts/build-wasm.mjs && pnpm --filter synth-ui-demo build",
+    "build:demo": "node scripts/build-wasm.mjs --opt && pnpm --filter synth-ui-demo build",
     "typecheck": "node scripts/build-wasm.mjs && pnpm -r typecheck",
     "test": "vitest run && cargo test -p synth-backend",
     "clean": "pnpm -r clean && cargo clean",
@@ -21,6 +21,7 @@
   },
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
+    "binaryen": "^132.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }
